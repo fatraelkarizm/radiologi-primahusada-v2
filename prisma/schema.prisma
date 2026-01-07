@@ -1,3 +1,6 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,83 +10,415 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// AUTH & USER MANAGEMENT
+// ============================================
+
 model User {
   id            String    @id @default(cuid())
   name          String?
   email         String    @unique
-  password      String
-  role          String    @default("USER")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  emailVerified DateTime?
+  image         String?
+  password      String? // Hashed password for credentials auth
+  role          UserRole  @default(STAFF)
+  status        String    @default("active")
+  
+  accounts      Account[]
+  sessions      Session[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  DOCTOR
+  NURSE
+  PHARMACIST
+  RADIOLOGIST
+  LAB_TECHNICIAN
+  RECEPTIONIST
+  STAFF
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================
+// CORE ENTITIES
+// ============================================
+
+model Patient {
+  id              Int       @id @default(autoincrement())
+  registrationNo  String    @unique // No. RM
+  nik             String?   @unique // ID card number
+  bpjsNo          String?   // BPJS number
+  name            String
+  birthDate       DateTime
+  birthPlace      String?
+  gender          String    // L/P
+  phone           String
+  email           String?
+  address         String
+  occupation      String?
+  maritalStatus   String?
+  religion        String?
+  bloodType       String?
+  
+  appointments    Appointment[]
+  medicalRecords  MedicalRecord[]
+  labTests        LabTest[]
+  xrayExaminations XRayExamination[]
+  invoices        Invoice[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("patients")
 }
 
 model Doctor {
-  id             Int       @id @default(autoincrement())
-  name           String
-  specialization String
-  license_number String
-  phone          String
-  email          String    @unique
-  experience     Int
-  status         String    @default("Aktif")
-  avatar         String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  patients       Patient[]
-  labTests       LabTest[]
-  xrayExams      XrayExam[]
+  id              Int       @id @default(autoincrement())
+  name            String
+  specialization  String
+  licenseNumber   String?   @unique // SIP/STR
+  phone           String
+  email           String?
+  experience      Int?      // years
+  status          String    @default("Aktif")
+  
+  schedules       DoctorSchedule[]
+  appointments    Appointment[]
+  medicalRecords  MedicalRecord[]
+  xrayExaminations XRayExamination[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("doctors")
 }
 
-model Patient {
-  id          Int      @id @default(autoincrement())
-  name        String
-  age         Int
-  gender      String
-  phone       String
-  address     String
-  status      String   @default("Aktif")
-  photo_url   String?
-  examination String?
-  clinic      String?
-  review      String?
-  doctor_id   Int?
-  doctor      Doctor?  @relation(fields: [doctor_id], references: [id])
-  labTests    LabTest[]
-  xrayExams   XrayExam[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model DoctorSchedule {
+  id            Int      @id @default(autoincrement())
+  doctorId      Int
+  dayOfWeek     Int      // 0-6 (Sunday-Saturday)
+  startTime     String   // HH:mm format
+  endTime       String
+  polyclinicId  Int?
+  
+  doctor        Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  polyclinic    Polyclinic? @relation(fields: [polyclinicId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("doctor_schedules")
 }
+
+model Appointment {
+  id              Int       @id @default(autoincrement())
+  appointmentCode String    @unique
+  patientId       Int
+  doctorId        Int
+  polyclinicId    Int?
+  appointmentDate DateTime
+  appointmentTime String
+  status          String    @default("Terkonfirmasi") // Terkonfirmasi, Menunggu, Selesai, Batal
+  notes           String?
+  source          String?   @default("Manual") // Manual, Online, Mobile
+  
+  patient     Patient     @relation(fields: [patientId], references: [id])
+  doctor      Doctor      @relation(fields: [doctorId], references: [id])
+  polyclinic  Polyclinic? @relation(fields: [polyclinicId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("appointments")
+}
+
+model MedicalRecord {
+  id              Int       @id @default(autoincrement())
+  patientId       Int
+  doctorId        Int
+  visitDate       DateTime  @default(now())
+  chiefComplaint  String?   // Keluhan utama
+  diagnosis       String?   // Diagnosa
+  icdCode         String?   // ICD-10 code
+  treatment       String?   // Tindakan
+  notes           String?
+  
+  patient         Patient   @relation(fields: [patientId], references: [id])
+  doctor          Doctor    @relation(fields: [doctorId], references: [id])
+  prescriptions   Prescription[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("medical_records")
+}
+
+model Prescription {
+  id              Int       @id @default(autoincrement())
+  medicalRecordId Int
+  medicineId      Int
+  quantity        Int
+  dosage          String    // e.g., "3x1" 
+  instructions    String?
+  
+  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id])
+  medicine        Medicine      @relation(fields: [medicineId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("prescriptions")
+}
+
+// ============================================
+// PHARMACY
+// ============================================
+
+model Medicine {
+  id              Int       @id @default(autoincrement())
+  code            String    @unique
+  name            String
+  category        String?   // Tablet, Sirup, Salep, etc.
+  unit            String    // Pcs, Box, Botol
+  purchasePrice   Float
+  sellingPrice    Float
+  stock           Int       @default(0)
+  minStock        Int?      @default(10)
+  expiryDate      DateTime?
+  manufacturer    String?
+  
+  prescriptions   Prescription[]
+  stockMovements  MedicineStockMovement[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("medicines")
+}
+
+model MedicineStockMovement {
+  id              Int       @id @default(autoincrement())
+  medicineId      Int
+  type            String    // IN, OUT, ADJUSTMENT, DISPOSAL
+  quantity        Int
+  notes           String?
+  referenceNo     String?   // PO number, invoice, etc.
+  
+  medicine        Medicine  @relation(fields: [medicineId], references: [id])
+  
+  createdAt DateTime @default(now())
+
+  @@map("medicine_stock_movements")
+}
+
+// ============================================
+// LABORATORY
+// ============================================
 
 model LabTest {
-  id          Int      @id @default(autoincrement())
-  patient_id  Int
-  patient     Patient  @relation(fields: [patient_id], references: [id])
-  category    String
-  testType    String
-  date        DateTime @default(now())
-  doctor_id   Int?
-  doctor      Doctor?  @relation(fields: [doctor_id], references: [id])
-  status      String   @default("Menunggu Sample")
-  priority    String   @default("Normal")
-  results     Json?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              Int       @id @default(autoincrement())
+  patientId       Int
+  doctorId        Int?
+  testCode        String    @unique
+  category        String    // Hematologi, Kimia Darah, etc.
+  testType        String    // Specific test name
+  testDate        DateTime  @default(now())
+  status          String    @default("Menunggu Sample") // Menunggu Sample, Dalam Proses, Selesai
+  priority        String    @default("Normal") // Normal, High, Urgent
+  results         Json?     // Flexible JSON for test parameters
+  notes           String?
+  
+  patient         Patient   @relation(fields: [patientId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("lab_tests")
 }
 
-model XrayExam {
-  id               Int      @id @default(autoincrement())
-  patient_id       Int
-  patient          Patient  @relation(fields: [patient_id], references: [id])
-  examination_type String
-  body_part        String
-  doctor_id        Int?
-  doctor           Doctor?  @relation(fields: [doctor_id], references: [id])
-  status           String   @default("Menunggu")
-  priority         String   @default("Normal")
-  image_url        String?
-  findings         String?
-  impression       String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+// ============================================
+// RADIOLOGY
+// ============================================
+
+model XRayExamination {
+  id                Int       @id @default(autoincrement())
+  patientId         Int
+  doctorId          Int?
+  radiologistId     Int?
+  examinationType   String    // Rontgen Dada, CT Scan, MRI, etc.
+  examinationDate   DateTime  @default(now())
+  status            String    @default("Menunggu") // Menunggu, Dalam Proses, Selesai
+  imageUrls         Json?     // Array of image URLs/paths
+  findings          String?   // Hasil pembacaan
+  notes             String?
+  
+  patient           Patient   @relation(fields: [patientId], references: [id])
+  doctor            Doctor?   @relation(fields: [doctorId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("xray_examinations")
+}
+
+// ============================================
+// FINANCIAL
+// ============================================
+
+model Invoice {
+  id              Int       @id @default(autoincrement())
+  invoiceNo       String    @unique
+  patientId       Int
+  invoiceDate     DateTime  @default(now())
+  dueDate         DateTime?
+  subtotal        Float
+  discount        Float     @default(0)
+  tax             Float     @default(0)
+  total           Float
+  paidAmount      Float     @default(0)
+  status          String    @default("Unpaid") // Unpaid, Partial, Paid
+  paymentMethod   String?   // Cash, Transfer, BPJS, Insurance
+  
+  patient         Patient   @relation(fields: [patientId], references: [id])
+  items           InvoiceItem[]
+  payments        Payment[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id              Int       @id @default(autoincrement())
+  invoiceId       Int
+  description     String
+  quantity        Int
+  unitPrice       Float
+  subtotal        Float
+  
+  invoice         Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  @@map("invoice_items")
+}
+
+model Payment {
+  id              Int       @id @default(autoincrement())
+  invoiceId       Int
+  paymentDate     DateTime  @default(now())
+  amount          Float
+  method          String    // Cash, Transfer, Credit Card, BPJS
+  referenceNo     String?
+  notes           String?
+  
+  invoice         Invoice   @relation(fields: [invoiceId], references: [id])
+  
+  createdAt DateTime @default(now())
+
+  @@map("payments")
+}
+
+// ============================================
+// SETTINGS & CONFIGURATION
+// ============================================
+
+model Clinic {
+  id              Int       @id @default(autoincrement())
+  name            String
+  address         String
+  phone           String
+  email           String?
+  website         String?
+  logo            String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("clinics")
+}
+
+model Insurance {
+  id              Int       @id @default(autoincrement())
+  name            String
+  code            String?   @unique
+  type            String?   // Government, Private
+  status          String    @default("Aktif")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("insurances")
+}
+
+model Service {
+  id              Int       @id @default(autoincrement())
+  code            String    @unique
+  name            String
+  category        String    // Konsultasi, Tindakan, Laboratorium
+  price           Float
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("services")
+}
+
+model Polyclinic {
+  id              Int       @id @default(autoincrement())
+  name            String
+  code            String?   @unique
+  operatingHours  String?   // e.g., "08:00-15:00"
+  status          String    @default("Aktif")
+  
+  schedules       DoctorSchedule[]
+  appointments    Appointment[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("polyclinics")
 }

@@ -1,26 +1,22 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useSession } from "next-auth/react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Printer, Edit, Trash2 } from "lucide-react";
-import { useReactToPrint } from "react-to-print";
-import { PrintLabLayout } from "@/components/PrintLabLayout";
+import { Search, Plus, Printer } from "lucide-react";
+import { mockLabTests, mockPatients } from "@/lib/mock-data";
 
 export default function LabTestsPage() {
-     const { data: session, status } = useSession();
-     const [labTests, setLabTests] = useState<any[]>([]);
-     const [patients, setPatients] = useState<any[]>([]);
+     const [labTests] = useState(mockLabTests);
+     const [patients] = useState(mockPatients);
      const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-     const [labTestToPrint, setLabTestToPrint] = useState<any | null>(null);
-     const printRef = useRef<HTMLDivElement>(null);
+     const [searchTerm, setSearchTerm] = useState("");
      const [formData, setFormData] = useState({
           patientId: "",
           category: "",
@@ -29,33 +25,10 @@ export default function LabTestsPage() {
           status: "Menunggu Sample"
      });
 
-     const handlePrint = useReactToPrint({
-          contentRef: printRef,
-          onAfterPrint: () => setLabTestToPrint(null)
-     });
-
-     useEffect(() => {
-          if (labTestToPrint) handlePrint();
-     }, [labTestToPrint]);
-
-     useEffect(() => {
-          if (status === 'authenticated') {
-               fetch('/api/lab-tests').then(res => res.json()).then(setLabTests);
-               fetch('/api/patients').then(res => res.json()).then(setPatients);
-          }
-     }, [status]);
-
-     const handleSubmit = async () => {
-          const res = await fetch('/api/lab-tests', {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify(formData)
-          });
-          if (res.ok) {
-               setIsAddModalOpen(false);
-               const data = await fetch('/api/lab-tests').then(r => r.json());
-               setLabTests(data);
-          }
+     const handleSubmit = () => {
+          // Mock submit - untuk demo saja
+          alert('Fitur ini akan aktif setelah integrasi database');
+          setIsAddModalOpen(false);
      };
 
      const getStatusColor = (status: string) => {
@@ -66,17 +39,14 @@ export default function LabTestsPage() {
           }
      };
 
+     const filteredTests = labTests.filter(test =>
+          test.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          test.testCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          test.testType?.toLowerCase().includes(searchTerm.toLowerCase())
+     );
+
      return (
           <div className="space-y-6">
-               <div style={{ display: "none" }}>
-                    {labTestToPrint && (
-                         <PrintLabLayout
-                              ref={printRef}
-                              labTest={labTestToPrint}
-                         />
-                    )}
-               </div>
-
                <div className="flex justify-between items-center">
                     <div>
                          <h1 className="text-3xl font-bold">Laboratorium</h1>
@@ -87,28 +57,56 @@ export default function LabTestsPage() {
 
                <Card>
                     <CardContent className="pt-6">
+                         <div className="relative mb-4">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                              <Input
+                                   placeholder="Cari pemeriksaan lab..."
+                                   className="pl-10"
+                                   value={searchTerm}
+                                   onChange={e => setSearchTerm(e.target.value)}
+                              />
+                         </div>
+
                          <Table>
                               <TableHeader>
                                    <TableRow>
                                         <TableHead>ID</TableHead>
                                         <TableHead>Pasien</TableHead>
+                                        <TableHead>Kategori</TableHead>
                                         <TableHead>Jenis Tes</TableHead>
+                                        <TableHead>Tanggal</TableHead>
                                         <TableHead>Status</TableHead>
                                         <TableHead className="text-right">Aksi</TableHead>
                                    </TableRow>
                               </TableHeader>
                               <TableBody>
-                                   {labTests.map(test => (
-                                        <TableRow key={test.id}>
-                                             <TableCell>LAB-{test.id}</TableCell>
-                                             <TableCell>{test.patientName || test.patients?.name}</TableCell>
-                                             <TableCell>{test.testType}</TableCell>
-                                             <TableCell><Badge variant="outline" className={getStatusColor(test.status)}>{test.status}</Badge></TableCell>
-                                             <TableCell className="text-right">
-                                                  <Button size="sm" variant="ghost" onClick={() => setLabTestToPrint(test)}><Printer className="w-4 h-4" /></Button>
+                                   {filteredTests.length === 0 ? (
+                                        <TableRow>
+                                             <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                                                  Tidak ada data pemeriksaan
                                              </TableCell>
                                         </TableRow>
-                                   ))}
+                                   ) : (
+                                        filteredTests.map(test => (
+                                             <TableRow key={test.id}>
+                                                  <TableCell className="font-medium">{test.testCode}</TableCell>
+                                                  <TableCell>{test.patientName}</TableCell>
+                                                  <TableCell>{test.category}</TableCell>
+                                                  <TableCell>{test.testType}</TableCell>
+                                                  <TableCell>{new Date(test.testDate).toLocaleDateString('id-ID')}</TableCell>
+                                                  <TableCell>
+                                                       <Badge variant="outline" className={getStatusColor(test.status)}>
+                                                            {test.status}
+                                                       </Badge>
+                                                  </TableCell>
+                                                  <TableCell className="text-right">
+                                                       <Button size="sm" variant="ghost">
+                                                            <Printer className="w-4 h-4" />
+                                                       </Button>
+                                                  </TableCell>
+                                             </TableRow>
+                                        ))
+                                   )}
                               </TableBody>
                          </Table>
                     </CardContent>
@@ -121,25 +119,31 @@ export default function LabTestsPage() {
                               <div className="grid gap-2">
                                    <Label>Pasien</Label>
                                    <Select onValueChange={v => setFormData({ ...formData, patientId: v })}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder="Pilih pasien..." /></SelectTrigger>
                                         <SelectContent>
-                                             {patients.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                                             {patients.map(p => (
+                                                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                                             ))}
                                         </SelectContent>
                                    </Select>
                               </div>
                               <div className="grid gap-2">
                                    <Label>Kategori</Label>
                                    <Select onValueChange={v => setFormData({ ...formData, category: v })}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder="Pilih kategori..." /></SelectTrigger>
                                         <SelectContent>
                                              <SelectItem value="Hematologi">Hematologi</SelectItem>
                                              <SelectItem value="Kimia Darah">Kimia Darah</SelectItem>
+                                             <SelectItem value="Urinalisis">Urinalisis</SelectItem>
                                         </SelectContent>
                                    </Select>
                               </div>
                               <div className="grid gap-2">
                                    <Label>Jenis Tes</Label>
-                                   <Input onChange={e => setFormData({ ...formData, testType: e.target.value })} placeholder="Cth: Darah Lengkap" />
+                                   <Input
+                                        onChange={e => setFormData({ ...formData, testType: e.target.value })}
+                                        placeholder="Contoh: Darah Lengkap"
+                                   />
                               </div>
                               <Button onClick={handleSubmit}>Simpan</Button>
                          </div>

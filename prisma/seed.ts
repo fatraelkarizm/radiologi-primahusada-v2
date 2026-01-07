@@ -1,31 +1,39 @@
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
+import { PrismaClient } from '@prisma/client';
+import {
+     seedUsers,
+     seedDoctors,
+     seedPatients,
+     seedPolyclinics,
+     seedMedicines,
+     seedSettings,
+} from './seeders';
 
 const prisma = new PrismaClient();
 
 async function main() {
-     const password = await bcrypt.hash('admin123', 10);
+     console.log('🌱 Starting database seeding...\n');
 
-     const user = await prisma.user.upsert({
-          where: { email: 'admin@radiocare.com' },
-          update: {},
-          create: {
-               email: 'admin@radiocare.com',
-               name: 'Admin Radiologi',
-               password: 'admin123',
-               role: 'ADMIN',
-          },
-     });
+     try {
+          // Seed in order of dependencies
+          await seedSettings();
+          await seedUsers();
+          await seedPolyclinics();
+          await seedDoctors();
+          await seedPatients();
+          await seedMedicines();
 
-     console.log({ user });
+          console.log('\n✅ Database seeding completed successfully!');
+     } catch (error) {
+          console.error('❌ Error during seeding:', error);
+          throw error;
+     }
 }
 
 main()
-     .then(async () => {
-          await prisma.$disconnect();
-     })
-     .catch(async (e) => {
+     .catch((e) => {
           console.error(e);
-          await prisma.$disconnect();
           process.exit(1);
+     })
+     .finally(async () => {
+          await prisma.$disconnect();
      });

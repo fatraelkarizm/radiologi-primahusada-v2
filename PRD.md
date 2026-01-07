@@ -60,3 +60,88 @@ This document outlines the requirements for the Sidebar component and general UI
 - [x] Use `#125eab` for all primary interactions.
 - [x] Remove inconsistent colors (e.g., emerald green) unless specific status requires it (which is not the case for main nav).
 - [x] Ensure "Beranda" matches the primary theme.
+
+---
+
+## 5. Backend Architecture
+
+### 5.1. Architecture Pattern: HSR (Handler-Service-Repository)
+
+The backend follows a clean, layered architecture pattern to ensure separation of concerns, testability, and maintainability.
+
+**Layer Structure:**
+
+```
+API Route (Handler) → Service → Repository → Database
+```
+
+#### **Handler Layer** (API Routes)
+- **Location**: `app/api/**route.ts`
+- **Responsibility**: 
+  - HTTP request/response handling
+  - Input validation and sanitization
+  - Authentication/authorization checks
+  - Error formatting for client consumption
+- **Example**: `app/api/patients/route.ts`
+
+#### **Service Layer**
+- **Location**: `lib/services/**`
+- **Responsibility**:
+  - Business logic implementation
+  - Data transformation and validation
+  - Orchestration of multiple repository calls
+  - Transaction management
+- **Example**: `lib/services/patientService.ts`
+
+#### **Repository Layer**
+- **Location**: `lib/repositories/**`
+- **Responsibility**:
+  - Direct database access via Prisma Client
+  - Query construction and optimization
+  - Data mapping between DB and domain models
+- **Example**: `lib/repositories/patientRepository.ts`
+
+### 5.2. Authentication & Authorization
+
+- **Auth Provider**: NextAuth.js v5
+- **Session Management**: JWT-based sessions
+- **Protected Routes**: Middleware-based route protection
+- **Role-Based Access**: User roles (admin, doctor, staff, receptionist)
+
+### 5.3. API Structure
+
+**Naming Convention:**
+- RESTful endpoints: `/api/[resource]` or `/api/[resource]/[id]`
+- HTTP methods: GET, POST, PUT, DELETE
+
+**Standard Response Format:**
+```typescript
+// Success
+{ data: T, message?: string }
+
+// Error
+{ error: string, message: string, statusCode: number }
+```
+
+### 5.4. Database
+
+- **ORM**: Prisma
+- **Database**: PostgreSQL (recommended) or MySQL
+- **Migration Strategy**: Prisma Migrate for schema changes
+- **Seeding**: Development data via `prisma/seed.ts`
+
+### 5.5. Data Flow Example
+
+```
+User clicks "Tambah Pasien" 
+  ↓
+Frontend sends POST /api/patients
+  ↓
+Handler validates input & auth
+  ↓
+Service applies business rules
+  ↓
+Repository creates patient record
+  ↓
+Response returns to frontend
+```
