@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String
+  role          String    @default("USER")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Doctor {
+  id             Int       @id @default(autoincrement())
+  name           String
+  specialization String
+  license_number String
+  phone          String
+  email          String    @unique
+  experience     Int
+  status         String    @default("Aktif")
+  avatar         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  patients       Patient[]
+  labTests       LabTest[]
+  xrayExams      XrayExam[]
+}
+
+model Patient {
+  id          Int      @id @default(autoincrement())
+  name        String
+  age         Int
+  gender      String
+  phone       String
+  address     String
+  status      String   @default("Aktif")
+  photo_url   String?
+  examination String?
+  clinic      String?
+  review      String?
+  doctor_id   Int?
+  doctor      Doctor?  @relation(fields: [doctor_id], references: [id])
+  labTests    LabTest[]
+  xrayExams   XrayExam[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LabTest {
+  id          Int      @id @default(autoincrement())
+  patient_id  Int
+  patient     Patient  @relation(fields: [patient_id], references: [id])
+  category    String
+  testType    String
+  date        DateTime @default(now())
+  doctor_id   Int?
+  doctor      Doctor?  @relation(fields: [doctor_id], references: [id])
+  status      String   @default("Menunggu Sample")
+  priority    String   @default("Normal")
+  results     Json?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model XrayExam {
+  id               Int      @id @default(autoincrement())
+  patient_id       Int
+  patient          Patient  @relation(fields: [patient_id], references: [id])
+  examination_type String
+  body_part        String
+  doctor_id        Int?
+  doctor           Doctor?  @relation(fields: [doctor_id], references: [id])
+  status           String   @default("Menunggu")
+  priority         String   @default("Normal")
+  image_url        String?
+  findings         String?
+  impression       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
