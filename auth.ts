@@ -1,8 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { mockUsers } from "@/lib/mock-data";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
      providers: [
@@ -13,23 +12,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                },
                authorize: async (credentials) => {
                     const parsedCredentials = z
-                         .object({ email: z.string().email(), password: z.string().min(1) }) // min 1 primarily to allow any password for testing if needed
+                         .object({ email: z.string().email(), password: z.string().min(1) })
                          .safeParse(credentials);
 
                     if (parsedCredentials.success) {
                          const { email, password } = parsedCredentials.data;
-                         const user = await prisma.user.findUnique({ where: { email } });
-                         if (!user) return null;
 
-                         // Note: In a real app, use bcrypt.compare
-                         // For now, if the user was created manually without hashing or implementation details vary
-                         // I will assume hashed.
-                         const passwordsMatch = await bcrypt.compare(password, user.password as string);
+                         // Mock authentication - for demo only
+                         // Accept any email from mockUsers with password: "demo123"
+                         const user = mockUsers.find(u => u.email === email);
 
-                         // Fallback for plain text (migration phase helper, remove in prod)
-                         if (!passwordsMatch && password === user.password) return user;
-
-                         if (passwordsMatch) return user;
+                         if (user && password === "demo123") {
+                              return {
+                                   id: user.id,
+                                   name: user.name,
+                                   email: user.email,
+                              };
+                         }
                     }
 
                     console.log("Invalid credentials");
@@ -43,7 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      callbacks: {
           async session({ session, token }) {
                if (token.sub && session.user) {
-                    // session.user.id = token.sub; // Types might need extension
+                    // session.user.id = token.sub;
                }
                return session;
           },
