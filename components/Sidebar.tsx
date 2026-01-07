@@ -101,8 +101,24 @@ const menuGroups: MenuSection[] = [
                          { label: "Pemusnahan Barang", href: "/pharmacy/disposal" },
                     ]
                },
+               {
+                    label: "Radiologi",
+                    icon: Wallet, // Placeholder icon, replace if better available
+                    href: "/radiology",
+                    subItems: [
+                         { label: "Pemeriksaan", href: "/radiology/examinations" },
+                         { label: "Dokter Radiologi", href: "/radiology/radiologists" },
+                    ]
+               },
+               {
+                    label: "Laboratorium",
+                    icon: FlaskConical,
+                    href: "/laboratory",
+                    subItems: [
+                         { label: "Pemeriksaan Lab", href: "/laboratory/tests" },
+                    ]
+               },
                { label: "Pembayaran", icon: Wallet, href: "/payments" },
-               { label: "Laboratorium", icon: FlaskConical, href: "/lab" },
                {
                     label: "Laporan",
                     icon: FileText,
@@ -191,7 +207,7 @@ export function Sidebar() {
                                    className="object-contain"
                               />
                          </div>
-                         <span className="text-lg">Klinik Prima Husada</span>
+                         <span className="text-[#125eab] text-[16px]">Klinik Prima Husada</span>
                     </div>
                </div>
 

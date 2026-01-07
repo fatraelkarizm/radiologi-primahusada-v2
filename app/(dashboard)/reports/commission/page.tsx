@@ -1,1 +1,16 @@
-export default function Page() { return <div className='p-6'><h1 className='text-2xl font-bold mb-4'>Commission</h1><p>Halaman ini sedang dalam pengembangan.</p></div> }
+"use client";
+
+import { Card, CardContent } from "@/components/ui/card";
+
+export default function ReportsCommissionPage() {
+     return (
+          <div className="space-y-6">
+               <h1 className="text-3xl font-bold">Laporan Komisi Dokter/Staff</h1>
+               <Card>
+                    <CardContent className="pt-6">
+                         <p className="text-muted-foreground text-center">Rekapitulasi komisi jasa medis.</p>
+                    </CardContent>
+               </Card>
+          </div>
+     );
+}
