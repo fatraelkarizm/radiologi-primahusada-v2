@@ -14,9 +14,9 @@ export async function getDashboardStats() {
     prisma.doctor.count(),
     prisma.labTest.count(),
     prisma.xRayExamination.count(),
-    prisma.registration.count({
+    prisma.patient.count({
       where: {
-        registrationDate: {
+        createdAt: {
           gte: new Date(new Date().setHours(0, 0, 0, 0)),
         }
       }
