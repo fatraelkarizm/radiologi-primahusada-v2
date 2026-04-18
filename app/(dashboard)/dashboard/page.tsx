@@ -128,7 +128,7 @@ export default function Dashboard() {
                          </div>
 
                          <div className="hidden md:block absolute right-0 bottom-0 h-full w-1/3">
-                              <div className="h-full w-full bg-gradient-to-l from-blue-50 to-transparent flex items-end justify-center pb-4">
+                              <div className="h-full w-full bg-linear-to-l from-blue-50 to-transparent flex items-end justify-center pb-4">
                                    <UserCheck className="w-32 h-32 text-blue-200 opacity-50" />
                               </div>
                          </div>
