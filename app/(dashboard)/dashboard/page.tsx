@@ -115,15 +115,21 @@ export default function Dashboard() {
                               <div className="pt-4 space-y-2">
                                    <p className="text-sm font-medium text-slate-700">Tekan salah satu tombol di bawah untuk menggunakan fitur tambahan.</p>
                                    <div className="flex gap-2 flex-wrap">
-                                        <Button variant="outline" className="text-[#125eab] border-[#125eab] hover:bg-blue-50 h-8 text-xs">
-                                             Pendaftaran Online
-                                        </Button>
-                                        <Button variant="outline" className="text-[#125eab] border-[#125eab] hover:bg-blue-50 h-8 text-xs">
-                                             Display Antrian
-                                        </Button>
-                                        <Button variant="outline" className="text-[#125eab] border-[#125eab] hover:bg-blue-50 h-8 text-xs">
-                                             Kiosk
-                                        </Button>
+                                        <Link href="/outpatient/registration">
+                                             <Button variant="outline" className="text-[#125eab] border-[#125eab] hover:bg-blue-50 h-8 text-xs">
+                                                  Pendaftaran Online
+                                             </Button>
+                                        </Link>
+                                        <Link href="/outpatient/queue">
+                                             <Button variant="outline" className="text-[#125eab] border-[#125eab] hover:bg-blue-50 h-8 text-xs">
+                                                  Display Antrian
+                                             </Button>
+                                        </Link>
+                                        <Link href="/outpatient/registration">
+                                             <Button variant="outline" className="text-[#125eab] border-[#125eab] hover:bg-blue-50 h-8 text-xs">
+                                                  Kiosk
+                                             </Button>
+                                        </Link>
                                    </div>
                               </div>
                          </div>
