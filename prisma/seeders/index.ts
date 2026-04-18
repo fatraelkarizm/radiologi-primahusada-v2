@@ -346,11 +346,120 @@ async function seedSettings() {
      return { clinic, insurances, services };
 }
 
+async function seedLabTests() {
+     console.log('Seeding lab tests...');
+
+     const patients = await prisma.patient.findMany({ take: 3 });
+     const doctors = await prisma.doctor.findMany({ take: 2 });
+
+     const labTests = await Promise.all([
+          prisma.labTest.upsert({
+               where: { testCode: 'LAB-2024-001' },
+               update: {},
+               create: {
+                    patientId: patients[0].id,
+                    doctorId: doctors[0].id,
+                    testCode: 'LAB-2024-001',
+                    category: 'Hematologi',
+                    testType: 'Darah Lengkap (CBC)',
+                    priority: 'Normal',
+                    status: 'Selesai',
+                    testDate: new Date(),
+                    results: { hemoglobin: "14.5", leucocyte: "7500", platelets: "250000" },
+                    notes: 'Hasil dalam batas normal.'
+               },
+          }),
+          prisma.labTest.upsert({
+               where: { testCode: 'LAB-2024-002' },
+               update: {},
+               create: {
+                    patientId: patients[1].id,
+                    doctorId: doctors[1].id,
+                    testCode: 'LAB-2024-002',
+                    category: 'Kimia Darah',
+                    testType: 'Glukosa Sewaktu',
+                    priority: 'High',
+                    status: 'Dalam Proses',
+                    testDate: new Date(),
+                    notes: 'Pasien puasa 8 jam.'
+               },
+          }),
+          prisma.labTest.upsert({
+               where: { testCode: 'LAB-2024-003' },
+               update: {},
+               create: {
+                    patientId: patients[2].id,
+                    testCode: 'LAB-2024-003',
+                    category: 'Urinalisis',
+                    testType: 'Urine Lengkap',
+                    priority: 'Normal',
+                    status: 'Menunggu Sample',
+                    testDate: new Date(),
+               },
+          }),
+     ]);
+
+     console.log('✓ Lab tests seeded');
+     return labTests;
+}
+
+async function seedXRayExaminations() {
+     console.log('Seeding X-Ray examinations...');
+
+     const patients = await prisma.patient.findMany({ take: 3 });
+     const doctors = await prisma.doctor.findMany({ take: 2 });
+
+     const xrays = await Promise.all([
+          prisma.xRayExamination.upsert({
+               where: { id: 1 },
+               update: {},
+               create: {
+                    patientId: patients[0].id,
+                    doctorId: doctors[0].id,
+                    examinationType: 'Rontgen Dada (Thorax)',
+                    examinationDate: new Date(),
+                    status: 'Selesai',
+                    findings: 'Cor dan pulmo dalam batas normal.',
+                    notes: 'Tidak tampak kardiomegali.'
+               },
+          }),
+          prisma.xRayExamination.upsert({
+               where: { id: 2 },
+               update: {},
+               create: {
+                    patientId: patients[1].id,
+                    doctorId: doctors[1].id,
+                    examinationType: 'USG Abdomen',
+                    examinationDate: new Date(),
+                    status: 'Dalam Proses',
+                    notes: 'Pemeriksaan sedang berlangsung.'
+               },
+          }),
+          prisma.xRayExamination.upsert({
+               where: { id: 3 },
+               update: {},
+               create: {
+                    patientId: patients[2].id,
+                    doctorId: doctors[0].id,
+                    examinationType: 'CT Scan Kepala',
+                    examinationDate: new Date(),
+                    status: 'Menunggu',
+               },
+          }),
+     ]);
+
+     console.log('✓ X-Ray examinations seeded');
+     return xrays;
+}
+
 export {
      seedUsers,
      seedDoctors,
      seedPatients,
      seedPolyclinics,
      seedMedicines,
-     seedSettings
+     seedSettings,
+     seedLabTests,
+     seedXRayExaminations
 };
+

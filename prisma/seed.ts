@@ -6,6 +6,8 @@ import {
      seedPolyclinics,
      seedMedicines,
      seedSettings,
+     seedLabTests,
+     seedXRayExaminations,
 } from './seeders';
 
 const prisma = new PrismaClient();
@@ -21,6 +23,8 @@ async function main() {
           await seedDoctors();
           await seedPatients();
           await seedMedicines();
+          await seedLabTests();
+          await seedXRayExaminations();
 
           console.log('\n✅ Database seeding completed successfully!');
      } catch (error) {

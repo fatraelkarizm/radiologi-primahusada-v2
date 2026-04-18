@@ -164,12 +164,6 @@ const menuGroups: MenuSection[] = [
                { label: "Keluar", icon: Power, onClick: () => signOut({ callbackUrl: "/login" }) },
           ],
      },
-     {
-          title: "PENGGUNA",
-          items: [
-               { label: "aw", icon: Receipt, href: "/tes" },
-          ],
-     }
 ];
 
 export function Sidebar() {
