@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
-import { mockDoctors } from "@/lib/mock-data";
+import * as doctorService from "@/lib/services/doctorService";
 
 export async function GET() {
-     return NextResponse.json(mockDoctors);
+    try {
+        const doctors = await doctorService.getDoctors();
+        return NextResponse.json(doctors);
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 }
 
 export async function POST(request: Request) {
-     const data = await request.json();
-     // Mock response - for demo only
-     return NextResponse.json({ ...data, id: mockDoctors.length + 1 });
+    try {
+        const data = await request.json();
+        const doctor = await doctorService.createDoctor(data);
+        return NextResponse.json(doctor);
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+    }
 }

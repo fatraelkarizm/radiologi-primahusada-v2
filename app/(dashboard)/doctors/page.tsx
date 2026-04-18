@@ -31,14 +31,6 @@ import {
      DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-     DropdownMenu,
-     DropdownMenuContent,
-     DropdownMenuItem,
-     DropdownMenuLabel,
-     DropdownMenuSeparator,
-     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
      Select,
      SelectContent,
      SelectItem,
@@ -50,44 +42,33 @@ import {
      Search,
      Plus,
      MoreHorizontal,
-     Eye,
      Edit,
      Trash2,
-     Phone,
      Printer,
+     Loader2,
 } from "lucide-react";
+import { Doctor } from "@prisma/client";
 
-type Doctor = {
-     id: number;
-     name: string;
-     specialization: string;
-     license_number: string;
-     phone: string;
-     email: string;
-     experience: number;
-     status: string;
-     avatar?: string;
-};
-
-export default function Doctors() {
+export default function DoctorsPage() {
      const { status } = useSession();
      const router = useRouter();
      const isAuthenticated = status === "authenticated";
 
      const [doctorsData, setDoctorsData] = useState<Doctor[]>([]);
+     const [loading, setLoading] = useState(true);
      const [searchTerm, setSearchTerm] = useState("");
      const [statusFilter, setStatusFilter] = useState("all");
      const [specializationFilter, setSpecializationFilter] = useState("all");
 
      const [isAddModalOpen, setIsAddModalOpen] = useState(false);
      const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-     const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
      const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
+     const [submitting, setSubmitting] = useState(false);
 
      const [formData, setFormData] = useState({
           name: "",
           specialization: "",
-          license_number: "",
+          licenseNumber: "",
           phone: "",
           email: "",
           status: "Aktif",
@@ -101,6 +82,7 @@ export default function Doctors() {
      }, [status, router]);
 
      const fetchDoctors = async () => {
+          setLoading(true);
           try {
                const response = await fetch("/api/doctors");
                if (!response.ok) throw new Error("Gagal mengambil data dokter");
@@ -108,6 +90,8 @@ export default function Doctors() {
                setDoctorsData(data);
           } catch (error) {
                console.error(error);
+          } finally {
+               setLoading(false);
           }
      };
 
@@ -127,10 +111,11 @@ export default function Doctors() {
      };
 
      const handleSubmit = async () => {
-          if (!formData.name || !formData.specialization || !formData.license_number) {
+          if (!formData.name || !formData.specialization || !formData.licenseNumber) {
                alert("Nama, Spesialisasi, dan Nomor STR wajib diisi!");
                return;
           }
+          setSubmitting(true);
           try {
                const response = await fetch("/api/doctors", {
                     method: 'POST',
@@ -138,18 +123,24 @@ export default function Doctors() {
                     body: JSON.stringify(formData)
                });
 
-               if (!response.ok) throw new Error(await response.text());
-               alert("Dokter baru berhasil ditambahkan.");
-               closeAddModal();
+               if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || "Gagal menambahkan dokter");
+               }
+               
+               setIsAddModalOpen(false);
                fetchDoctors();
-          } catch (error) {
+          } catch (error: any) {
                console.error("Error:", error);
-               alert((error as Error).message);
+               alert(error.message);
+          } finally {
+               setSubmitting(false);
           }
      };
 
      const handleUpdate = async () => {
           if (!editingDoctor) return;
+          setSubmitting(true);
           try {
                const response = await fetch(`/api/doctors/${editingDoctor.id}`, {
                     method: 'PUT',
@@ -157,13 +148,19 @@ export default function Doctors() {
                     body: JSON.stringify(formData)
                });
 
-               if (!response.ok) throw new Error(await response.text());
-               alert("Data dokter berhasil diupdate.");
-               closeEditModal();
+               if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || "Gagal mengupdate data dokter");
+               }
+
+               setIsEditModalOpen(false);
+               setEditingDoctor(null);
                fetchDoctors();
-          } catch (error) {
+          } catch (error: any) {
                console.error("Error:", error);
-               alert((error as Error).message);
+               alert(error.message);
+          } finally {
+               setSubmitting(false);
           }
      };
 
@@ -174,19 +171,20 @@ export default function Doctors() {
                     method: 'DELETE',
                });
 
-               if (!response.ok) throw new Error(await response.text());
-               alert("Dokter berhasil dihapus.");
+               if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || "Gagal menghapus dokter");
+               }
                fetchDoctors();
-          } catch (error) {
+          } catch (error: any) {
                console.error("Error:", error);
-               alert((error as Error).message);
+               alert(error.message);
           }
      };
 
      const filteredDoctors = doctorsData.filter((doctor) => {
           const matchesSearch =
                doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-               String(doctor.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
                doctor.specialization.toLowerCase().includes(searchTerm.toLowerCase());
           const matchesStatus =
                statusFilter === "all" || doctor.status.toLowerCase() === statusFilter.toLowerCase();
@@ -204,114 +202,177 @@ export default function Doctors() {
           }
      };
 
-     const getInitials = (name: string) => {
-          return name.split(" ").map((n) => n[0]).join("").toUpperCase();
-     };
-
      const openAddModal = () => {
           setFormData({
-               name: "", specialization: "", license_number: "", phone: "", email: "", status: "Aktif", experience: "",
+               name: "", specialization: "", licenseNumber: "", phone: "", email: "", status: "Aktif", experience: "",
           });
           setIsAddModalOpen(true);
      };
-     const closeAddModal = () => setIsAddModalOpen(false);
 
      const openEditModal = (doctor: Doctor) => {
           setEditingDoctor(doctor);
           setFormData({
                name: doctor.name,
                specialization: doctor.specialization,
-               license_number: doctor.license_number,
+               licenseNumber: doctor.licenseNumber || "",
                phone: doctor.phone,
-               email: doctor.email,
+               email: doctor.email || "",
                status: doctor.status,
-               experience: String(doctor.experience),
+               experience: String(doctor.experience ?? ""),
           });
           setIsEditModalOpen(true);
      };
-     const closeEditModal = () => {
-          setIsEditModalOpen(false);
-          setEditingDoctor(null);
-     };
 
-     if (status === "loading") return <div className="p-8">Loading...</div>;
+     if (status === "loading") return <div className="p-8 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
      if (!isAuthenticated) return null;
 
      return (
-          <div className="container mx-auto py-8 px-4 space-y-6">
-               {/* ... existing UI adapted ... */}
+          <div className="space-y-6">
                <div className="flex items-center justify-between">
                     <div>
-                         <h1 className="text-3xl font-bold text-foreground">Manajemen Dokter</h1>
+                         <h1 className="text-3xl font-bold">Manajemen Dokter</h1>
                          <p className="text-muted-foreground">Kelola data dokter dan jadwal praktik</p>
                     </div>
                     <div className="flex items-center gap-2">
                          <Button variant="outline"><Printer className="w-4 h-4 mr-2" />Cetak</Button>
-                         <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-                              <DialogTrigger asChild><Button onClick={openAddModal}><Plus className="w-4 h-4 mr-2" />Tambah Dokter</Button></DialogTrigger>
-                              <DialogContent className="max-w-2xl">
-                                   {/* Modals content */}
-                                   <DialogHeader>
-                                        <DialogTitle>Tambah Dokter</DialogTitle>
-                                        <DialogDescription>Masukkan detail dokter baru.</DialogDescription>
-                                   </DialogHeader>
-                                   <div className="grid grid-cols-2 gap-4 py-4">
-                                        <div className="space-y-2"><Label htmlFor="name">Nama</Label><Input id="name" value={formData.name} onChange={handleInputChange} /></div>
-                                        <div className="space-y-2">
-                                             <Label htmlFor="specialization">Spesialisasi</Label>
-                                             <Select value={formData.specialization} onValueChange={(v: string) => handleSelectChange("specialization", v)}>
-                                                  <SelectTrigger><SelectValue /></SelectTrigger>
-                                                  <SelectContent>
-                                                       <SelectItem value="Radiologi">Radiologi</SelectItem>
-                                                       <SelectItem value="Patologi">Patologi</SelectItem>
-                                                       <SelectItem value="Dokter Umum">Dokter Umum</SelectItem>
-                                                  </SelectContent>
-                                             </Select>
-                                        </div>
-                                        {/* ... other inputs ... */}
-                                        <div className="space-y-2"><Label htmlFor="license_number">Nomor STR</Label><Input id="license_number" value={formData.license_number} onChange={handleInputChange} /></div>
-                                        <div className="space-y-2"><Label htmlFor="phone">Telepon</Label><Input id="phone" value={formData.phone} onChange={handleInputChange} /></div>
-                                        <div className="col-span-2 space-y-2"><Label htmlFor="email">Email</Label><Input id="email" value={formData.email} onChange={handleInputChange} /></div>
-                                        <div className="space-y-2"><Label htmlFor="experience">Pengalaman</Label><Input id="experience" type="number" value={formData.experience} onChange={handleInputChange} /></div>
-                                   </div>
-                                   <div className="flex justify-end gap-2">
-                                        <Button variant="outline" onClick={closeAddModal}>Batal</Button>
-                                        <Button onClick={handleSubmit}>Simpan</Button>
-                                   </div>
-                              </DialogContent>
-                         </Dialog>
+                         <Button onClick={openAddModal}><Plus className="w-4 h-4 mr-2" />Tambah Dokter</Button>
                     </div>
                </div>
 
-               {/* Table */}
                <Card>
                     <CardHeader>
-                         <CardTitle>Daftar Dokter</CardTitle>
+                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                              <CardTitle>Daftar Dokter</CardTitle>
+                              <div className="relative w-full md:w-72">
+                                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                   <Input 
+                                        placeholder="Cari dokter..." 
+                                        className="pl-10" 
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                   />
+                              </div>
+                         </div>
                     </CardHeader>
                     <CardContent>
-                         <Table>
-                              <TableHeader>
-                                   <TableRow>
-                                        <TableHead>Nama</TableHead>
-                                        <TableHead>Spesialisasi</TableHead>
-                                        <TableHead>Aksi</TableHead>
-                                   </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                   {filteredDoctors.map(doctor => (
-                                        <TableRow key={doctor.id}>
-                                             <TableCell>{doctor.name}</TableCell>
-                                             <TableCell>{doctor.specialization}</TableCell>
-                                             <TableCell>
-                                                  <Button variant="ghost" size="sm" onClick={() => openEditModal(doctor)}><Edit className="w-4 h-4" /></Button>
-                                                  <Button variant="ghost" size="sm" className="text-red-500" onClick={() => handleDelete(doctor.id)}><Trash2 className="w-4 h-4" /></Button>
-                                             </TableCell>
+                         <div className="rounded-md border">
+                              <Table>
+                                   <TableHeader>
+                                        <TableRow>
+                                             <TableHead>Nama</TableHead>
+                                             <TableHead>Spesialisasi</TableHead>
+                                             <TableHead>No. STR</TableHead>
+                                             <TableHead>Telepon</TableHead>
+                                             <TableHead>Status</TableHead>
+                                             <TableHead className="text-right">Aksi</TableHead>
                                         </TableRow>
-                                   ))}
-                              </TableBody>
-                         </Table>
+                                   </TableHeader>
+                                   <TableBody>
+                                        {loading ? (
+                                             <TableRow>
+                                                  <TableCell colSpan={6} className="text-center py-8">
+                                                       <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
+                                                  </TableCell>
+                                             </TableRow>
+                                        ) : filteredDoctors.length === 0 ? (
+                                             <TableRow>
+                                                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                                       Tidak ada data dokter.
+                                                  </TableCell>
+                                             </TableRow>
+                                        ) : (
+                                             filteredDoctors.map(doctor => (
+                                                  <TableRow key={doctor.id}>
+                                                       <TableCell className="font-medium">{doctor.name}</TableCell>
+                                                       <TableCell>{doctor.specialization}</TableCell>
+                                                       <TableCell>{doctor.licenseNumber}</TableCell>
+                                                       <TableCell>{doctor.phone}</TableCell>
+                                                       <TableCell>
+                                                            <Badge variant="outline" className={getStatusColor(doctor.status)}>
+                                                                 {doctor.status}
+                                                            </Badge>
+                                                       </TableCell>
+                                                       <TableCell className="text-right space-x-2">
+                                                            <Button variant="ghost" size="sm" onClick={() => openEditModal(doctor)}><Edit className="w-4 h-4" /></Button>
+                                                            <Button variant="ghost" size="sm" className="text-red-500" onClick={() => handleDelete(doctor.id)}><Trash2 className="w-4 h-4" /></Button>
+                                                       </TableCell>
+                                                  </TableRow>
+                                             ))
+                                        )}
+                                   </TableBody>
+                              </Table>
+                         </div>
                     </CardContent>
                </Card>
+
+               <Dialog open={isAddModalOpen || isEditModalOpen} onOpenChange={(v) => {
+                    if (!v) {
+                         setIsAddModalOpen(false);
+                         setIsEditModalOpen(false);
+                    }
+               }}>
+                    <DialogContent className="max-w-2xl">
+                         <DialogHeader>
+                              <DialogTitle>{isEditModalOpen ? "Edit Dokter" : "Tambah Dokter"}</DialogTitle>
+                              <DialogDescription>
+                                   {isEditModalOpen ? "Perbarui detail dokter yang dipilih." : "Masukkan detail untuk menambahkan dokter baru ke sistem."}
+                              </DialogDescription>
+                         </DialogHeader>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+                              <div className="space-y-2">
+                                   <Label htmlFor="name">Nama Lengkap</Label>
+                                   <Input id="name" value={formData.name} onChange={handleInputChange} placeholder="contoh: dr. John Doe" />
+                              </div>
+                              <div className="space-y-2">
+                                   <Label htmlFor="specialization">Spesialisasi</Label>
+                                   <Select value={formData.specialization} onValueChange={(v) => handleSelectChange("specialization", v)}>
+                                        <SelectTrigger id="specialization"><SelectValue placeholder="Pilih Spesialisasi" /></SelectTrigger>
+                                        <SelectContent>
+                                             <SelectItem value="Radiologi">Radiologi</SelectItem>
+                                             <SelectItem value="Penyakit Dalam">Penyakit Dalam</SelectItem>
+                                             <SelectItem value="Umum">Dokter Umum</SelectItem>
+                                             <SelectItem value="Gigi">Gigi</SelectItem>
+                                             <SelectItem value="Kebidanan">Kebidanan</SelectItem>
+                                        </SelectContent>
+                                   </Select>
+                              </div>
+                              <div className="space-y-2">
+                                   <Label htmlFor="licenseNumber">Nomor STR</Label>
+                                   <Input id="licenseNumber" value={formData.licenseNumber} onChange={handleInputChange} placeholder="contoh: STR-12345" />
+                              </div>
+                              <div className="space-y-2">
+                                   <Label htmlFor="phone">No. Telepon</Label>
+                                   <Input id="phone" value={formData.phone} onChange={handleInputChange} placeholder="contoh: 0812..." />
+                              </div>
+                              <div className="space-y-2">
+                                   <Label htmlFor="email">Email</Label>
+                                   <Input id="email" type="email" value={formData.email} onChange={handleInputChange} placeholder="contoh: doctor@prima.com" />
+                              </div>
+                              <div className="space-y-2">
+                                   <Label htmlFor="experience">Pengalaman (Tahun)</Label>
+                                   <Input id="experience" type="number" value={formData.experience} onChange={handleInputChange} placeholder="0" />
+                              </div>
+                              <div className="space-y-2">
+                                   <Label htmlFor="status">Status</Label>
+                                   <Select value={formData.status} onValueChange={(v) => handleSelectChange("status", v)}>
+                                        <SelectTrigger id="status"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                             <SelectItem value="Aktif">Aktif</SelectItem>
+                                             <SelectItem value="Cuti">Cuti</SelectItem>
+                                             <SelectItem value="Non-Aktif">Non-Aktif</SelectItem>
+                                        </SelectContent>
+                                   </Select>
+                              </div>
+                         </div>
+                         <div className="flex justify-end gap-2">
+                              <Button variant="outline" onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }}>Batal</Button>
+                              <Button onClick={isEditModalOpen ? handleUpdate : handleSubmit} disabled={submitting}>
+                                   {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                   {isEditModalOpen ? "Simpan Perubahan" : "Simpan Dokter"}
+                              </Button>
+                         </div>
+                    </DialogContent>
+               </Dialog>
           </div>
      );
 }

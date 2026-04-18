@@ -3,13 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useReactToPrint } from "react-to-print";
-
-// import { PrintLayout } from "@/components/PrintLayout"; // Assuming this needs to be moved or exists
-// Creating a placeholder or assuming it exists. I will comment it out if not found, but user said "existing code".
-// I'll try to keep it but I might need to mock it if it relies on other things.
-// Actually I'll use a simple print div inline if component is missing, but let's try to import.
 import { PrintLayout } from "@/components/PrintLayout";
-
 import {
      Card,
      CardContent,
@@ -36,16 +30,7 @@ import {
      DialogDescription,
      DialogHeader,
      DialogTitle,
-     DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-     DropdownMenu,
-     DropdownMenuContent,
-     DropdownMenuItem,
-     DropdownMenuLabel,
-     DropdownMenuSeparator,
-     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
      Select,
      SelectContent,
@@ -53,97 +38,48 @@ import {
      SelectTrigger,
      SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-     Search,
-     Plus,
-     Printer,
-     MoreHorizontal,
-     Edit,
-     Trash2,
-     Eye,
-} from "lucide-react";
+import { Search, Plus, Printer, Edit, Trash2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { XRayExamination, Patient, Doctor } from "@prisma/client";
 
-// Types
-type XrayExamination = {
-     id: number;
-     patient_id: number;
-     doctor_id?: number;
-     examination_type: string;
-     examination_date: string;
-     status: string;
-     notes?: string;
-     image_urls: string[];
-     created_at: string;
-     updated_at: string;
-     patients?: Patient;
-     doctors?: { name: string };
-     radiolog_id?: number;
-     radiologs?: { name: string };
-};
-
-type Patient = {
-     id: number;
-     name: string;
-     age: number;
-     gender: string;
-     phone: string;
-     address: string;
-};
-
-type Doctor = {
-     id: number;
-     name: string;
-     specialization?: string;
-};
-
-type Radiolog = {
-     id: number;
-     name: string;
+// Extended type for frontend view with relations
+type XRayView = XRayExamination & {
+     patient?: Patient;
+     doctor?: Doctor;
 };
 
 export default function XRayExaminationsPage() {
-     const { data: session, status } = useSession();
+     const { status } = useSession();
      const router = useRouter();
      const isAuthenticated = status === "authenticated";
 
      // State Management
-     const [xrayData, setXrayData] = useState<XrayExamination[]>([]);
+     const [xrayData, setXrayData] = useState<XRayView[]>([]);
      const [patients, setPatients] = useState<Patient[]>([]);
      const [doctors, setDoctors] = useState<Doctor[]>([]);
-     const [radiologs, setRadiologs] = useState<Radiolog[]>([]); // These might just be Doctors with specialization
-     const [isLoading, setIsLoading] = useState(false);
+     const [loading, setLoading] = useState(true);
 
      // Filter states
      const [searchTerm, setSearchTerm] = useState("");
-     const [statusFilter, setStatusFilter] = useState("all");
-     const [typeFilter, setTypeFilter] = useState("all");
 
      // Modal states
-     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
      const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
      const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-
-     const [selectedXray, setSelectedXray] = useState<XrayExamination | null>(null);
-     const [editingXray, setEditingXray] = useState<XrayExamination | null>(null);
-     const [xrayToDelete, setXrayToDelete] = useState<XrayExamination | null>(null);
-     const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+     const [xrayToDelete, setXrayToDelete] = useState<XRayView | null>(null);
+     const [editingXray, setEditingXray] = useState<XRayView | null>(null);
+     const [submitting, setSubmitting] = useState(false);
 
      // Print states
-     const [printSearchTerm, setPrintSearchTerm] = useState("");
-     const [xrayToPrint, setXrayToPrint] = useState<XrayExamination | null>(null);
+     const [xrayToPrint, setXrayToPrint] = useState<XRayView | null>(null);
      const printXrayComponentRef = useRef<HTMLDivElement>(null);
 
      // Form data
      const [formData, setFormData] = useState({
-          patient_id: "",
-          doctor_id: "",
-          radiolog_id: "2", // Default placeholder
-          examination_type: "",
-          examination_date: "",
+          patientId: "",
+          doctorId: "",
+          examinationType: "",
+          examinationDate: new Date().toISOString().split('T')[0],
           status: "Menunggu",
           notes: "",
      });
@@ -154,7 +90,7 @@ export default function XRayExaminationsPage() {
           onAfterPrint: () => setXrayToPrint(null),
      });
 
-     const triggerXrayPrint = (xray: XrayExamination) => {
+     const triggerXrayPrint = (xray: XRayView) => {
           setXrayToPrint(xray);
      };
 
@@ -172,228 +108,146 @@ export default function XRayExaminationsPage() {
      }, [status, router]);
 
      // Fetch functions
-     const fetchXrayExaminations = async () => {
+     const fetchData = async () => {
+          setLoading(true);
           try {
-               const response = await fetch("/api/xray");
-               if (response.ok) {
-                    const data = await response.json();
-                    setXrayData(data);
-               }
+               const [xrayRes, patientsRes, doctorsRes] = await Promise.all([
+                    fetch("/api/xray"),
+                    fetch("/api/patients"),
+                    fetch("/api/doctors")
+               ]);
+               
+               if (xrayRes.ok) setXrayData(await xrayRes.json());
+               if (patientsRes.ok) setPatients(await patientsRes.json());
+               if (doctorsRes.ok) setDoctors(await doctorsRes.json());
           } catch (error) {
-               console.error("Fetch X-ray examinations error:", error);
+               console.error("Fetch data error:", error);
+          } finally {
+               setLoading(false);
           }
      };
-
-     const fetchPatients = async () => {
-          try {
-               const response = await fetch("/api/patients");
-               if (response.ok) {
-                    const data = await response.json();
-                    setPatients(data);
-               }
-          } catch (error) {
-               console.error("Fetch patients error:", error);
-          }
-     };
-
-     const fetchDoctors = async () => {
-          try {
-               const response = await fetch("/api/doctors");
-               if (response.ok) {
-                    const data = await response.json();
-                    setDoctors(data);
-               }
-          } catch (error) {
-               console.error("Fetch doctors error:", error);
-          }
-     };
-
-     // Assuming radiologs are doctors or a specific endpoint. 
-     // Existing code called /api/radiologs. I'll use /api/doctors for now or keep it if endpoint exists (it likely doesn't).
-     // I will skip fetching radiologs for now or map from doctors.
 
      useEffect(() => {
           if (isAuthenticated) {
-               fetchXrayExaminations();
-               fetchPatients();
-               fetchDoctors();
+               fetchData();
           }
      }, [isAuthenticated]);
 
-     // File upload handlers
-     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-          const files = Array.from(event.target.files || []);
-          setUploadFiles(files);
-     };
-
-     const removeFile = (index: number) => {
-          setUploadFiles(uploadFiles.filter((_, i) => i !== index));
-     };
-
      // CRUD Operations
      const handleSubmit = async () => {
-          if (!formData.patient_id || !formData.examination_type) {
+          if (!formData.patientId || !formData.examinationType) {
                alert("Pasien dan jenis pemeriksaan wajib diisi!");
                return;
           }
 
-          setIsLoading(true);
+          setSubmitting(true);
           try {
-               // In a real app with pure Prisma API, we might send JSON or FormData depending on backend capability.
-               // Existing XRayDepartment used FormData. I'll stick to that.
-               const submissionData = new FormData();
-
-               Object.entries(formData).forEach(([key, value]) => {
-                    submissionData.append(key, value);
-               });
-
-               uploadFiles.forEach((file) => {
-                    submissionData.append("xrayImages", file);
-               });
-
                const response = await fetch("/api/xray", {
                     method: "POST",
-                    body: submissionData,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(formData),
                });
 
                if (response.ok) {
-                    alert("Pemeriksaan X-Ray berhasil ditambahkan.");
-                    closeUploadModal();
-                    fetchXrayExaminations();
+                    setIsAddModalOpen(false);
+                    fetchData();
                } else {
-                    throw new Error(await response.text());
+                    const err = await response.json();
+                    throw new Error(err.error || "Gagal menyimpan data");
                }
-          } catch (error) {
+          } catch (error: any) {
                console.error("Error:", error);
-               alert((error as Error).message);
+               alert(error.message);
           } finally {
-               setIsLoading(false);
+               setSubmitting(false);
           }
      };
 
      const handleUpdate = async () => {
           if (!editingXray) return;
 
+          setSubmitting(true);
           try {
                const response = await fetch(`/api/xray/${editingXray.id}`, {
                     method: "PUT",
-                    headers: {
-                         'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                         examination_type: formData.examination_type,
-                         examination_date: formData.examination_date,
-                         status: formData.status,
-                         notes: formData.notes,
-                         doctor_id: formData.doctor_id ? parseInt(formData.doctor_id) : null,
-                         radiolog_id: formData.radiolog_id ? parseInt(formData.radiolog_id) : null,
-                    }),
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData),
                });
 
                if (response.ok) {
-                    alert("Data pemeriksaan berhasil diupdate.");
-                    closeEditModal();
-                    fetchXrayExaminations();
+                    setIsEditModalOpen(false);
+                    setEditingXray(null);
+                    fetchData();
                } else {
-                    throw new Error(await response.text());
+                    const err = await response.json();
+                    throw new Error(err.error || "Gagal mengupdate data");
                }
-          } catch (error) {
+          } catch (error: any) {
                console.error("Error:", error);
-               alert((error as Error).message);
+               alert(error.message);
+          } finally {
+               setSubmitting(false);
           }
      };
 
      const handleDelete = async () => {
           if (!xrayToDelete) return;
 
+          setSubmitting(true);
           try {
                const response = await fetch(`/api/xray/${xrayToDelete.id}`, {
                     method: "DELETE",
                });
 
                if (response.ok) {
-                    alert("Pemeriksaan X-Ray berhasil dihapus.");
-                    closeDeleteModal();
-                    fetchXrayExaminations();
+                    setIsDeleteModalOpen(false);
+                    setXrayToDelete(null);
+                    fetchData();
                } else {
-                    throw new Error(await response.text());
+                    const err = await response.json();
+                    throw new Error(err.error || "Gagal menghapus data");
                }
-          } catch (error) {
+          } catch (error: any) {
                console.error("Error:", error);
-               alert((error as Error).message);
+               alert(error.message);
+          } finally {
+               setSubmitting(false);
           }
      };
 
-     // Modal handlers
-     const openUploadModal = () => {
+     const openAddModal = () => {
           setFormData({
-               patient_id: "",
-               doctor_id: "",
-               radiolog_id: "2",
-               examination_type: "",
-               examination_date: "",
+               patientId: "",
+               doctorId: "",
+               examinationType: "",
+               examinationDate: new Date().toISOString().split('T')[0],
                status: "Menunggu",
                notes: "",
           });
-          setUploadFiles([]);
-          setIsUploadModalOpen(true);
+          setIsAddModalOpen(true);
      };
 
-     const closeUploadModal = () => setIsUploadModalOpen(false);
-
-     const openEditModal = (xray: XrayExamination) => {
+     const openEditModal = (xray: XRayView) => {
           setEditingXray(xray);
           setFormData({
-               patient_id: String(xray.patient_id),
-               doctor_id: xray.doctor_id ? String(xray.doctor_id) : "",
-               radiolog_id: xray.radiolog_id ? String(xray.radiolog_id) : "2",
-               examination_type: xray.examination_type,
-               examination_date: xray.examination_date,
+               patientId: String(xray.patientId),
+               doctorId: xray.doctorId ? String(xray.doctorId) : "",
+               examinationType: xray.examinationType,
+               examinationDate: new Date(xray.examinationDate).toISOString().split('T')[0],
                status: xray.status,
                notes: xray.notes || "",
           });
           setIsEditModalOpen(true);
      };
 
-     const closeEditModal = () => {
-          setIsEditModalOpen(false);
-          setEditingXray(null);
-     };
-
-     const triggerDelete = (xray: XrayExamination) => {
-          setXrayToDelete(xray);
-          setIsDeleteModalOpen(true);
-     }
-
-     const closeDeleteModal = () => {
-          setIsDeleteModalOpen(false);
-          setXrayToDelete(null);
-     }
-
-     // Filter logic
      const filteredXrays = xrayData.filter((xray) => {
-          const safeToLower = (str: string | null | undefined): string => {
-               return str ? str.toLowerCase() : "";
-          };
-
-          const patientName = xray.patients?.name || "";
-          const matchesSearch =
-               safeToLower(patientName).includes(searchTerm.toLowerCase()) ||
-               safeToLower(String(xray.id)).includes(searchTerm.toLowerCase()) ||
-               safeToLower(xray.examination_type).includes(searchTerm.toLowerCase());
-
-          const matchesStatus =
-               statusFilter === "all" ||
-               safeToLower(xray.status).replace(/\s+/g, "-") === statusFilter;
-
-          const matchesType =
-               typeFilter === "all" ||
-               safeToLower(xray.examination_type).includes(typeFilter);
-
-          return matchesSearch && matchesStatus && matchesType;
+          const patientName = xray.patient?.name || "";
+          return (
+               patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+               xray.examinationType.toLowerCase().includes(searchTerm.toLowerCase())
+          );
      });
 
-     // Utils
      const getStatusColor = (status: string) => {
           switch (status) {
                case "Selesai": return "bg-green-100 text-green-800 border-green-200";
@@ -403,149 +257,193 @@ export default function XRayExaminationsPage() {
           }
      };
 
-     const formatDate = (dateString: string) => {
-          if (!dateString) return "N/A";
-          return new Date(dateString).toLocaleDateString("id-ID");
-     };
-
-     if (status === "loading" || isLoading) {
-          return (
-               <div className="flex items-center justify-center min-h-screen">
-                    <div className="text-center">
-                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                         <p>Memuat...</p>
-                    </div>
-               </div>
-          );
-     }
-
+     if (status === "loading") return <div className="p-8 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
      if (!isAuthenticated) return null;
 
      return (
           <div className="space-y-6">
                <div style={{ display: "none" }}>
                     {xrayToPrint && (
-                         <PrintLayout
-                              ref={printXrayComponentRef}
-                              xrayData={xrayToPrint}
-                              patient={patients.find((p) => p.id === xrayToPrint.patient_id)}
-                              doctor={doctors.find((d) => d.id === xrayToPrint.doctor_id)}
-                         />
+                         <div ref={printXrayComponentRef}>
+                              <PrintLayout
+                                   xrayData={{
+                                        ...xrayToPrint,
+                                        patient_id: xrayToPrint.patientId,
+                                        examination_type: xrayToPrint.examinationType,
+                                        examination_date: xrayToPrint.examinationDate.toString(),
+                                        doctor_id: xrayToPrint.doctorId,
+                                   }}
+                                   patient={xrayToPrint.patient ? {
+                                        ...xrayToPrint.patient,
+                                        age: 0, // Mock age if not in Prisma but needed by PrintLayout
+                                   } : undefined}
+                                   doctor={xrayToPrint.doctor}
+                              />
+                         </div>
                     )}
                </div>
 
-               {/* Header */}
                <div className="flex items-center justify-between">
                     <div>
-                         <h1 className="text-3xl font-bold text-foreground">Bagian Rontgen</h1>
+                         <h1 className="text-3xl font-bold">Bagian Rontgen</h1>
                          <p className="text-muted-foreground">Kelola pemeriksaan radiologi.</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                         <Button onClick={openUploadModal}>
-                              <Plus className="w-4 h-4 mr-2" />
-                              Tambah Pemeriksaan
-                         </Button>
-                    </div>
+                    <Button onClick={openAddModal}>
+                         <Plus className="w-4 h-4 mr-2" /> Tambah Pemeriksaan
+                    </Button>
                </div>
 
-               {/* Filters (Simplified for brevity, similar to original) */}
                <Card>
                     <CardContent className="pt-6">
                          <div className="relative">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                              <Input placeholder="Cari..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                              <Input 
+                                   placeholder="Cari nama pasien atau jenis pemeriksaan..." 
+                                   value={searchTerm} 
+                                   onChange={(e) => setSearchTerm(e.target.value)} 
+                                   className="pl-10" 
+                              />
                          </div>
                     </CardContent>
                </Card>
 
-               {/* Table */}
                <Card>
                     <CardContent className="p-0">
-                         <Table>
-                              <TableHeader>
-                                   <TableRow>
-                                        <TableHead>ID</TableHead>
-                                        <TableHead>Pasien</TableHead>
-                                        <TableHead>Jenis</TableHead>
-                                        <TableHead>Tanggal</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Aksi</TableHead>
-                                   </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                   {filteredXrays.map((xray) => (
-                                        <TableRow key={xray.id}>
-                                             <TableCell>XR{String(xray.id).padStart(3, "0")}</TableCell>
-                                             <TableCell>{xray.patients?.name}</TableCell>
-                                             <TableCell>{xray.examination_type}</TableCell>
-                                             <TableCell>{formatDate(xray.examination_date)}</TableCell>
-                                             <TableCell><Badge className={getStatusColor(xray.status)}>{xray.status}</Badge></TableCell>
-                                             <TableCell className="text-right">
-                                                  <div className="flex justify-end gap-2">
-                                                       <Button variant="ghost" size="icon" onClick={() => triggerXrayPrint(xray)}><Printer className="w-4 h-4" /></Button>
-                                                       <Button variant="ghost" size="icon" onClick={() => openEditModal(xray)}><Edit className="w-4 h-4" /></Button>
-                                                       <Button variant="ghost" size="icon" onClick={() => triggerDelete(xray)} className="text-red-600"><Trash2 className="w-4 h-4" /></Button>
-                                                  </div>
-                                             </TableCell>
+                         <div className="rounded-md border">
+                              <Table>
+                                   <TableHeader>
+                                        <TableRow>
+                                             <TableHead className="pl-4">ID</TableHead>
+                                             <TableHead>Pasien</TableHead>
+                                             <TableHead>Jenis Pemeriksaan</TableHead>
+                                             <TableHead>Tanggal</TableHead>
+                                             <TableHead>Status</TableHead>
+                                             <TableHead className="text-right pr-4">Aksi</TableHead>
                                         </TableRow>
-                                   ))}
-                              </TableBody>
-                         </Table>
+                                   </TableHeader>
+                                   <TableBody>
+                                        {loading ? (
+                                             <TableRow>
+                                                  <TableCell colSpan={6} className="text-center py-8">
+                                                       <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
+                                                  </TableCell>
+                                             </TableRow>
+                                        ) : filteredXrays.length === 0 ? (
+                                             <TableRow>
+                                                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                                       Tidak ada data pemeriksaan.
+                                                  </TableCell>
+                                             </TableRow>
+                                        ) : (
+                                             filteredXrays.map((xray) => (
+                                                  <TableRow key={xray.id}>
+                                                       <TableCell className="pl-4 font-mono text-xs">XR{String(xray.id).padStart(3, "0")}</TableCell>
+                                                       <TableCell className="font-medium">{xray.patient?.name}</TableCell>
+                                                       <TableCell>{xray.examinationType}</TableCell>
+                                                       <TableCell>{new Date(xray.examinationDate).toLocaleDateString("id-ID")}</TableCell>
+                                                       <TableCell><Badge variant="outline" className={getStatusColor(xray.status)}>{xray.status}</Badge></TableCell>
+                                                       <TableCell className="text-right pr-4 space-x-1">
+                                                            <Button variant="ghost" size="icon" onClick={() => triggerXrayPrint(xray)}><Printer className="w-4 h-4" /></Button>
+                                                            <Button variant="ghost" size="icon" onClick={() => openEditModal(xray)}><Edit className="w-4 h-4" /></Button>
+                                                            <Button variant="ghost" size="icon" onClick={() => { setXrayToDelete(xray); setIsDeleteModalOpen(true); }} className="text-red-600"><Trash2 className="w-4 h-4" /></Button>
+                                                       </TableCell>
+                                                  </TableRow>
+                                             ))
+                                        )}
+                                   </TableBody>
+                              </Table>
+                         </div>
                     </CardContent>
                </Card>
 
-               {/* Upload Modal */}
-               <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
-                    <DialogContent className="max-w-4xl">
+               {/* Add/Edit Modal */}
+               <Dialog open={isAddModalOpen || isEditModalOpen} onOpenChange={(v) => { if(!v) { setIsAddModalOpen(false); setIsEditModalOpen(false); } }}>
+                    <DialogContent className="max-w-2xl">
                          <DialogHeader>
-                              <DialogTitle>Tambah Pemeriksaan</DialogTitle>
-                              <DialogDescription>Input data pemeriksaan baru</DialogDescription>
+                              <DialogTitle>{isEditModalOpen ? "Edit Pemeriksaan" : "Tambah Pemeriksaan"}</DialogTitle>
+                              <DialogDescription>Input data pemeriksaan radiologi pasien.</DialogDescription>
                          </DialogHeader>
 
-                         <div className="grid grid-cols-2 gap-4 py-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
                               <div className="space-y-2">
-                                   <Label>Pasien</Label>
-                                   <Select value={formData.patient_id} onValueChange={(val) => setFormData({ ...formData, patient_id: val })}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                                   <Label htmlFor="patientId">Pasien</Label>
+                                   <Select 
+                                        disabled={isEditModalOpen}
+                                        value={formData.patientId} 
+                                        onValueChange={(val) => setFormData({ ...formData, patientId: val })}
+                                   >
+                                        <SelectTrigger id="patientId"><SelectValue placeholder="Pilih Pasien" /></SelectTrigger>
                                         <SelectContent>
                                              {patients.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
                                         </SelectContent>
                                    </Select>
                               </div>
                               <div className="space-y-2">
-                                   <Label>Jenis Pemeriksaan</Label>
-                                   <Select value={formData.examination_type} onValueChange={(val) => setFormData({ ...formData, examination_type: val })}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                                   <Label htmlFor="examinationType">Jenis Pemeriksaan</Label>
+                                   <Select value={formData.examinationType} onValueChange={(val) => setFormData({ ...formData, examinationType: val })}>
+                                        <SelectTrigger id="examinationType"><SelectValue placeholder="Pilih Jenis" /></SelectTrigger>
                                         <SelectContent>
                                              <SelectItem value="Rontgen Dada">Rontgen Dada</SelectItem>
                                              <SelectItem value="CT Scan">CT Scan</SelectItem>
                                              <SelectItem value="MRI">MRI</SelectItem>
                                              <SelectItem value="USG">USG</SelectItem>
+                                             <SelectItem value="Rontgen Ekstremitas">Rontgen Ekstremitas</SelectItem>
                                         </SelectContent>
                                    </Select>
                               </div>
                               <div className="space-y-2">
-                                   <Label>Dokter Pengirim</Label>
-                                   <Select value={formData.doctor_id} onValueChange={(val) => setFormData({ ...formData, doctor_id: val })}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                                   <Label htmlFor="doctorId">Dokter Pengirim</Label>
+                                   <Select value={formData.doctorId} onValueChange={(val) => setFormData({ ...formData, doctorId: val })}>
+                                        <SelectTrigger id="doctorId"><SelectValue placeholder="Pilih Dokter" /></SelectTrigger>
                                         <SelectContent>
                                              {doctors.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
                                         </SelectContent>
                                    </Select>
                               </div>
                               <div className="space-y-2">
-                                   <Label>Tanggal</Label>
-                                   <Input type="date" value={formData.examination_date} onChange={(e) => setFormData({ ...formData, examination_date: e.target.value })} />
+                                   <Label htmlFor="examinationDate">Tanggal Pemeriksaan</Label>
+                                   <Input id="examinationDate" type="date" value={formData.examinationDate} onChange={(e) => setFormData({ ...formData, examinationDate: e.target.value })} />
                               </div>
-                              <div className="space-y-2 col-span-2">
-                                   <Label>Catatan</Label>
-                                   <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
+                              <div className="space-y-2">
+                                   <Label htmlFor="status">Status</Label>
+                                   <Select value={formData.status} onValueChange={(val) => setFormData({ ...formData, status: val })}>
+                                        <SelectTrigger id="status"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                             <SelectItem value="Menunggu">Menunggu</SelectItem>
+                                             <SelectItem value="Dalam Proses">Dalam Proses</SelectItem>
+                                             <SelectItem value="Selesai">Selesai</SelectItem>
+                                        </SelectContent>
+                                   </Select>
+                              </div>
+                              <div className="space-y-2 md:col-span-2">
+                                   <Label htmlFor="notes">Catatan / Hasil Sementara</Label>
+                                   <Textarea id="notes" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="Masukkan hasil pemeriksaan..." />
                               </div>
                          </div>
 
                          <div className="flex justify-end gap-2">
-                              <Button variant="outline" onClick={closeUploadModal}>Batal</Button>
-                              <Button onClick={handleSubmit}>Simpan</Button>
+                              <Button variant="outline" onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }}>Batal</Button>
+                              <Button onClick={isEditModalOpen ? handleUpdate : handleSubmit} disabled={submitting}>
+                                   {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                   Simpan
+                              </Button>
+                         </div>
+                    </DialogContent>
+               </Dialog>
+
+               {/* Delete Confirm */}
+               <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+                    <DialogContent>
+                         <DialogHeader>
+                              <DialogTitle>Hapus Pemeriksaan</DialogTitle>
+                              <DialogDescription>Apakah Anda yakin ingin menghapus data pemeriksaan ini? Tindakan ini tidak dapat dibatalkan.</DialogDescription>
+                         </DialogHeader>
+                         <div className="flex justify-end gap-2 mt-4">
+                              <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
+                              <Button variant="destructive" onClick={handleDelete} disabled={submitting}>
+                                   {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                   Hapus
+                              </Button>
                          </div>
                     </DialogContent>
                </Dialog>

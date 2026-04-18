@@ -114,8 +114,10 @@ async function seedPatients() {
      console.log('Seeding patients...');
 
      const patients = await Promise.all([
-          prisma.patient.create({
-               data: {
+          prisma.patient.upsert({
+               where: { registrationNo: 'RM-2024-0001' },
+               update: {},
+               create: {
                     registrationNo: 'RM-2024-0001',
                     nik: '3201010101900001',
                     bpjsNo: '0001234567890',
@@ -132,8 +134,10 @@ async function seedPatients() {
                     bloodType: 'O',
                },
           }),
-          prisma.patient.create({
-               data: {
+          prisma.patient.upsert({
+               where: { registrationNo: 'RM-2024-0002' },
+               update: {},
+               create: {
                     registrationNo: 'RM-2024-0002',
                     nik: '3201010201850002',
                     name: 'Dewi Kusuma',
@@ -148,8 +152,10 @@ async function seedPatients() {
                     bloodType: 'A',
                },
           }),
-          prisma.patient.create({
-               data: {
+          prisma.patient.upsert({
+               where: { registrationNo: 'RM-2024-0003' },
+               update: {},
+               create: {
                     registrationNo: 'RM-2024-0003',
                     nik: '3201010301950003',
                     name: 'Ahmad Fauzi',
@@ -214,8 +220,10 @@ async function seedMedicines() {
      console.log('Seeding medicines...');
 
      const medicines = await Promise.all([
-          prisma.medicine.create({
-               data: {
+          prisma.medicine.upsert({
+               where: { code: 'MED-001' },
+               update: {},
+               create: {
                     code: 'MED-001',
                     name: 'Paracetamol 500mg',
                     category: 'Tablet',
@@ -227,8 +235,10 @@ async function seedMedicines() {
                     manufacturer: 'PT. Kimia Farma',
                },
           }),
-          prisma.medicine.create({
-               data: {
+          prisma.medicine.upsert({
+               where: { code: 'MED-002' },
+               update: {},
+               create: {
                     code: 'MED-002',
                     name: 'Amoxicillin 500mg',
                     category: 'Kapsul',
@@ -240,8 +250,10 @@ async function seedMedicines() {
                     manufacturer: 'PT. Kalbe Farma',
                },
           }),
-          prisma.medicine.create({
-               data: {
+          prisma.medicine.upsert({
+               where: { code: 'MED-003' },
+               update: {},
+               create: {
                     code: 'MED-003',
                     name: 'OBH Combi Batuk',
                     category: 'Sirup',

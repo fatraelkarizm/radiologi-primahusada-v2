@@ -25,51 +25,44 @@ import {
      DialogDescription,
      DialogHeader,
      DialogTitle,
-     DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-     Select,
-     SelectContent,
-     SelectItem,
-     SelectTrigger,
-     SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, Trash2, Edit } from "lucide-react";
+import { Search, Plus, Loader2, Edit } from "lucide-react";
+import { Doctor } from "@prisma/client";
 
 export default function RadiologistsPage() {
-     const { data: session, status } = useSession();
-     const [isAuthenticated, setIsAuthenticated] = useState(false);
+     const { status } = useSession();
+     const isAuthenticated = status === 'authenticated';
 
-     const [doctors, setDoctors] = useState<any[]>([]);
+     const [doctors, setDoctors] = useState<Doctor[]>([]);
+     const [loading, setLoading] = useState(true);
      const [searchTerm, setSearchTerm] = useState("");
      const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+     const [submitting, setSubmitting] = useState(false);
      const [formData, setFormData] = useState({
           name: "",
           phone: "",
-          specialization: "Radiologi", // Default
+          specialization: "Radiologi",
           email: "",
           experience: "0",
-          license_number: "",
+          licenseNumber: "",
      });
 
-     useEffect(() => {
-          if (status === 'authenticated') setIsAuthenticated(true);
-     }, [status]);
-
      const fetchDoctors = async () => {
+          setLoading(true);
           try {
                const res = await fetch("/api/doctors");
                if (res.ok) {
                     const data = await res.json();
-                    // Filter only Radiologists implicitly or explicitly
-                    // Since the user asked for "Radiologs", we can filter by specialization if we want
-                    // but for now I'll show all doctors but highlight they are managed here? 
-                    // Better: Client side filter for "Radiologi"
+                    // Filter only Radiologists
                     const radiologs = data.filter((d: any) => d.specialization === 'Radiologi');
                     setDoctors(radiologs);
                }
-          } catch (e) { console.error(e); }
+          } catch (e) { 
+               console.error(e); 
+          } finally {
+               setLoading(false);
+          }
      };
 
      useEffect(() => {
@@ -77,6 +70,12 @@ export default function RadiologistsPage() {
      }, [isAuthenticated]);
 
      const handleSubmit = async () => {
+          if (!formData.name || !formData.licenseNumber) {
+               alert("Nama dan SIP wajib diisi.");
+               return;
+          }
+
+          setSubmitting(true);
           try {
                const res = await fetch("/api/doctors", {
                     method: "POST",
@@ -86,12 +85,20 @@ export default function RadiologistsPage() {
                if (res.ok) {
                     setIsAddModalOpen(false);
                     fetchDoctors();
-                    setFormData({ name: "", phone: "", specialization: "Radiologi", email: "", experience: "0", license_number: "" });
+                    setFormData({ name: "", phone: "", specialization: "Radiologi", email: "", experience: "0", licenseNumber: "" });
                } else {
-                    alert("Gagal menyimpan");
+                    const err = await res.json();
+                    alert(`Gagal: ${err.error || "Terjadi kesalahan"}`);
                }
-          } catch (e) { console.error(e); }
+          } catch (e) { 
+               console.error(e); 
+          } finally {
+               setSubmitting(false);
+          }
      }
+
+     if (status === "loading") return <div className="p-8 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+     if (!isAuthenticated) return null;
 
      return (
           <div className="space-y-6">
@@ -114,31 +121,46 @@ export default function RadiologistsPage() {
 
                <Card>
                     <CardContent>
-                         <Table>
-                              <TableHeader>
-                                   <TableRow>
-                                        <TableHead>Nama</TableHead>
-                                        <TableHead>Spesialisasi</TableHead>
-                                        <TableHead>No. SIP</TableHead>
-                                        <TableHead>Telepon</TableHead>
-                                        <TableHead className="text-right">Aksi</TableHead>
-                                   </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                   {doctors.filter(d => d.name.toLowerCase().includes(searchTerm.toLowerCase())).map((doc) => (
-                                        <TableRow key={doc.id}>
-                                             <TableCell className="font-medium">{doc.name}</TableCell>
-                                             <TableCell>{doc.specialization}</TableCell>
-                                             <TableCell>{doc.license_number || "-"}</TableCell>
-                                             <TableCell>{doc.phone}</TableCell>
-                                             <TableCell className="text-right">
-                                                  <Button variant="ghost" size="sm"><Edit className="h-4 w-4" /></Button>
-                                             </TableCell>
+                         <div className="rounded-md border mt-6">
+                              <Table>
+                                   <TableHeader>
+                                        <TableRow>
+                                             <TableHead>Nama</TableHead>
+                                             <TableHead>Spesialisasi</TableHead>
+                                             <TableHead>No. SIP/STR</TableHead>
+                                             <TableHead>Telepon</TableHead>
+                                             <TableHead className="text-right">Aksi</TableHead>
                                         </TableRow>
-                                   ))}
-                                   {doctors.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-4">Belum ada data Radiolog</TableCell></TableRow>}
-                              </TableBody>
-                         </Table>
+                                   </TableHeader>
+                                   <TableBody>
+                                        {loading ? (
+                                             <TableRow>
+                                                  <TableCell colSpan={5} className="text-center py-8">
+                                                       <Loader2 className="h-4 w-4 animate-spin mx-auto text-primary" />
+                                                  </TableCell>
+                                             </TableRow>
+                                        ) : doctors.filter(d => d.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 ? (
+                                             <TableRow>
+                                                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                                       Belum ada data Radiolog.
+                                                  </TableCell>
+                                             </TableRow>
+                                        ) : (
+                                             doctors.filter(d => d.name.toLowerCase().includes(searchTerm.toLowerCase())).map((doc) => (
+                                                  <TableRow key={doc.id}>
+                                                       <TableCell className="font-medium">{doc.name}</TableCell>
+                                                       <TableCell>{doc.specialization}</TableCell>
+                                                       <TableCell>{doc.licenseNumber || "-"}</TableCell>
+                                                       <TableCell>{doc.phone}</TableCell>
+                                                       <TableCell className="text-right">
+                                                            <Button variant="ghost" size="sm"><Edit className="h-4 w-4" /></Button>
+                                                       </TableCell>
+                                                  </TableRow>
+                                             ))
+                                        )}
+                                   </TableBody>
+                              </Table>
+                         </div>
                     </CardContent>
                </Card>
 
@@ -146,25 +168,29 @@ export default function RadiologistsPage() {
                     <DialogContent>
                          <DialogHeader>
                               <DialogTitle>Tambah Radiolog</DialogTitle>
+                              <DialogDescription>Masukkan data dokter spesialis radiologi baru.</DialogDescription>
                          </DialogHeader>
                          <div className="grid gap-4 py-4">
                               <div className="grid gap-2">
-                                   <Label>Nama Lengkap</Label>
-                                   <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="dr. Fulan" />
+                                   <Label htmlFor="name">Nama Lengkap</Label>
+                                   <Input id="name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="dr. Fulan" />
                               </div>
                               <div className="grid gap-2">
                                    <Label>Spesialisasi</Label>
                                    <Input value={formData.specialization} readOnly className="bg-slate-50" />
                               </div>
                               <div className="grid gap-2">
-                                   <Label>Nomor SIP</Label>
-                                   <Input value={formData.license_number} onChange={e => setFormData({ ...formData, license_number: e.target.value })} />
+                                   <Label htmlFor="licenseNumber">Nomor SIP/STR</Label>
+                                   <Input id="licenseNumber" value={formData.licenseNumber} onChange={e => setFormData({ ...formData, licenseNumber: e.target.value })} />
                               </div>
                               <div className="grid gap-2">
-                                   <Label>No. Telepon</Label>
-                                   <Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                                   <Label htmlFor="phone">No. Telepon</Label>
+                                   <Input id="phone" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
                               </div>
-                              <Button onClick={handleSubmit}>Simpan</Button>
+                              <Button onClick={handleSubmit} disabled={submitting}>
+                                   {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                   Simpan
+                              </Button>
                          </div>
                     </DialogContent>
                </Dialog>

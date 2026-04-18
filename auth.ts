@@ -1,7 +1,8 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
-import { mockUsers } from "@/lib/mock-data";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
      providers: [
@@ -18,16 +19,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                     if (parsedCredentials.success) {
                          const { email, password } = parsedCredentials.data;
 
-                         // Mock authentication - for demo only
-                         // Accept any email from mockUsers with password: "demo123"
-                         const user = mockUsers.find(u => u.email === email);
+                         const user = await prisma.user.findUnique({
+                              where: { email },
+                         });
 
-                         if (user && password === "demo123") {
-                              return {
-                                   id: user.id,
-                                   name: user.name,
-                                   email: user.email,
-                              };
+                         if (user && user.password) {
+                              const passwordsMatch = await bcrypt.compare(password, user.password);
+                              if (passwordsMatch) {
+                                   return {
+                                        id: user.id,
+                                        name: user.name,
+                                        email: user.email,
+                                   };
+                              }
                          }
                     }
 

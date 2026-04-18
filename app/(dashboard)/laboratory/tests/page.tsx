@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,38 +9,99 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Printer } from "lucide-react";
-import { mockLabTests, mockPatients } from "@/lib/mock-data";
+import { Search, Plus, Printer, Loader2 } from "lucide-react";
 
 export default function LabTestsPage() {
-     const [labTests] = useState(mockLabTests);
-     const [patients] = useState(mockPatients);
+     const [labTests, setLabTests] = useState<any[]>([]);
+     const [patients, setPatients] = useState<any[]>([]);
+     const [loading, setLoading] = useState(true);
      const [isAddModalOpen, setIsAddModalOpen] = useState(false);
      const [searchTerm, setSearchTerm] = useState("");
+     const [submitting, setSubmitting] = useState(false);
      const [formData, setFormData] = useState({
           patientId: "",
           category: "",
           testType: "",
           priority: "Normal",
-          status: "Menunggu Sample"
+          status: "Menunggu Sample",
+          testCode: ""
      });
 
-     const handleSubmit = () => {
-          // Mock submit - untuk demo saja
-          alert('Fitur ini akan aktif setelah integrasi database');
-          setIsAddModalOpen(false);
+     useEffect(() => {
+          fetchData();
+     }, []);
+
+     const fetchData = async () => {
+          setLoading(true);
+          try {
+               const [testsRes, patientsRes] = await Promise.all([
+                    fetch("/api/lab-tests"),
+                    fetch("/api/patients")
+               ]);
+               const testsData = await testsRes.json();
+               const patientsData = await patientsRes.json();
+               setLabTests(testsData);
+               setPatients(patientsData);
+          } catch (error) {
+               console.error("Failed to fetch data:", error);
+          } finally {
+               setLoading(false);
+          }
+     };
+
+     const handleSubmit = async () => {
+          if (!formData.patientId || !formData.testType || !formData.category) {
+               alert("Mohon lengkapi data pasien, kategori, dan jenis tes.");
+               return;
+          }
+
+          setSubmitting(true);
+          try {
+               const testCode = formData.testCode || `LAB-${Date.now().toString().slice(-6)}`;
+               const response = await fetch("/api/lab-tests", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                         ...formData,
+                         testCode,
+                         testDate: new Date().toISOString()
+                    }),
+               });
+
+               if (response.ok) {
+                    setIsAddModalOpen(false);
+                    setFormData({
+                         patientId: "",
+                         category: "",
+                         testType: "",
+                         priority: "Normal",
+                         status: "Menunggu Sample",
+                         testCode: ""
+                    });
+                    fetchData();
+               } else {
+                    const err = await response.json();
+                    alert(`Gagal: ${err.error || "Terjadi kesalahan"}`);
+               }
+          } catch (error) {
+               console.error("Error creating lab test:", error);
+               alert("Terjadi kesalahan saat menyimpan data.");
+          } finally {
+               setSubmitting(false);
+          }
      };
 
      const getStatusColor = (status: string) => {
           switch (status) {
                case "Selesai": return "bg-green-100 text-green-800";
                case "Dalam Proses": return "bg-yellow-100 text-yellow-800";
-               default: return "bg-blue-100 text-blue-800";
+               case "Menunggu": return "bg-blue-100 text-blue-800";
+               default: return "bg-slate-100 text-slate-800";
           }
      };
 
      const filteredTests = labTests.filter(test =>
-          test.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          test.patient?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           test.testCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           test.testType?.toLowerCase().includes(searchTerm.toLowerCase())
      );
@@ -80,7 +141,16 @@ export default function LabTestsPage() {
                                    </TableRow>
                               </TableHeader>
                               <TableBody>
-                                   {filteredTests.length === 0 ? (
+                                   {loading ? (
+                                        <TableRow>
+                                             <TableCell colSpan={7} className="text-center py-8">
+                                                  <div className="flex justify-center items-center gap-2">
+                                                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                                       Memuat data...
+                                                  </div>
+                                             </TableCell>
+                                        </TableRow>
+                                   ) : filteredTests.length === 0 ? (
                                         <TableRow>
                                              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                                                   Tidak ada data pemeriksaan
@@ -90,7 +160,7 @@ export default function LabTestsPage() {
                                         filteredTests.map(test => (
                                              <TableRow key={test.id}>
                                                   <TableCell className="font-medium">{test.testCode}</TableCell>
-                                                  <TableCell>{test.patientName}</TableCell>
+                                                  <TableCell>{test.patient?.name}</TableCell>
                                                   <TableCell>{test.category}</TableCell>
                                                   <TableCell>{test.testType}</TableCell>
                                                   <TableCell>{new Date(test.testDate).toLocaleDateString('id-ID')}</TableCell>
@@ -145,7 +215,10 @@ export default function LabTestsPage() {
                                         placeholder="Contoh: Darah Lengkap"
                                    />
                               </div>
-                              <Button onClick={handleSubmit}>Simpan</Button>
+                              <Button onClick={handleSubmit} disabled={submitting}>
+                                   {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                   Simpan
+                              </Button>
                          </div>
                     </DialogContent>
                </Dialog>

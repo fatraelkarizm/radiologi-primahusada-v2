@@ -12,17 +12,10 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import {
-     Calendar,
      Users,
      UserCheck,
-     FlaskConical,
-     Camera,
-     TrendingUp,
-     Activity,
-     FileText,
-     Plus,
+     Loader2,
 } from "lucide-react";
 import {
      AreaChart,
@@ -37,99 +30,66 @@ import {
      Cell
 } from "recharts";
 
-// Types
 type DashboardStats = {
      totalPatients: number;
      totalDoctors: number;
      totalLabTests: number;
      totalXrayExams: number;
-     todayPatients: number;
+     todayRegistrations: number;
      pendingLabTests: number;
-     completedLabTests: number;
      pendingXrays: number;
-     completedXrays: number;
-};
-
-type RecentActivity = {
-     id: string;
-     type: 'patient' | 'lab' | 'xray';
-     title: string;
-     description: string;
-     time: string;
-     status: string;
-};
-
-type ChartData = {
-     name: string;
-     value: number;
-     patients?: number;
-     labs?: number;
-     xrays?: number;
-};
-
-type PatientsByGender = {
-     gender: string;
-     count: number;
-     percentage: number;
 };
 
 export default function Dashboard() {
-     const { status, data: session } = useSession();
+     const { status } = useSession();
      const router = useRouter();
      const isAuthenticated = status === "authenticated";
 
-     // Dashboard Data States
-     // In a real app, these would come from the API as before
-     // For now, hardcoding to match the "empty" state in the screenshot or fetching what we can
-     const [stats, setStats] = useState({
-          bookingToday: 0,
-          pendingToday: 0,
-          unpaidToday: 0,
-          completedToday: 0,
-          visitsToday: 0,
-          patientsToday: 0,
-          visitsYear: 6,
-          patientsYear: 4,
-     });
-
+     const [stats, setStats] = useState<DashboardStats | null>(null);
      const [isLoading, setIsLoading] = useState(true);
 
      useEffect(() => {
           if (status === "unauthenticated") {
                router.push("/login");
           } else if (status === "authenticated") {
-               setIsLoading(false);
+               fetchStats();
           }
      }, [status, router]);
 
-     const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042'];
+     const fetchStats = async () => {
+          try {
+               const response = await fetch("/api/dashboard/stats");
+               if (response.ok) {
+                    const data = await response.json();
+                    setStats(data);
+               }
+          } catch (error) {
+               console.error("Failed to fetch dashboard stats:", error);
+          } finally {
+               setIsLoading(false);
+          }
+     };
 
-     // Mock data for charts to match screenshot
+     // Placeholder chart data
      const barData = [
           { name: 'Jan', value: 4 },
-          { name: 'Feb', value: 0 },
-          { name: 'Mar', value: 1 },
-          { name: 'Apr', value: 0 },
-          { name: 'May', value: 0 },
+          { name: 'Feb', value: 2 },
+          { name: 'Mar', value: stats?.totalPatients || 0 },
+          { name: 'Apr', value: stats?.todayRegistrations || 0 },
+          { name: 'Mei', value: 0 },
           { name: 'Jun', value: 0 },
-          { name: 'Jul', value: 0 },
-          { name: 'Aug', value: 0 },
-          { name: 'Sep', value: 0 },
-          { name: 'Okt', value: 1 },
-          { name: 'Nov', value: 0 },
-          { name: 'Des', value: 0 },
      ];
 
      const pieData = [
-          { name: 'Laki-Laki', value: 1, color: '#C7D2FE' }, // Light purple/blue
-          { name: 'Perempuan', value: 5, color: '#D9F99D' }, // Light green
+          { name: 'Selesai', value: stats ? (stats.totalLabTests + stats.totalXrayExams) : 0, color: '#D9F99D' },
+          { name: 'Menunggu', value: stats ? (stats.pendingLabTests + stats.pendingXrays) : 0, color: '#C7D2FE' },
      ];
 
      if (status === "loading" || isLoading) {
           return (
                <div className="flex items-center justify-center min-h-screen">
                     <div className="text-center">
-                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                         <Loader2 className="animate-spin h-8 w-8 text-primary mx-auto mb-4" />
                          <p>Memuat dashboard...</p>
                     </div>
                </div>
@@ -167,30 +127,27 @@ export default function Dashboard() {
                               </div>
                          </div>
 
-                         {/* Illustration Placeholder */}
                          <div className="hidden md:block absolute right-0 bottom-0 h-full w-1/3">
-                              {/* Using a placeholder SVG or just a div to represent the illustration area if no image asset available */}
-                              <div className="h-full w-full bg-linear-to-l from-blue-50 to-transparent flex items-end justify-center pb-4">
-                                   {/* Simple SVG representation of medical theme */}
+                              <div className="h-full w-full bg-gradient-to-l from-blue-50 to-transparent flex items-end justify-center pb-4">
                                    <UserCheck className="w-32 h-32 text-blue-200 opacity-50" />
                               </div>
                          </div>
                     </div>
                </Card>
 
-               {/* Row 1: Daily Specifics */}
+               {/* Stats Summary */}
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                         { title: "Booking Hari Ini", value: stats.bookingToday },
-                         { title: "Belum Diperiksa Hari Ini", value: stats.pendingToday },
-                         { title: "Belum Bayar Hari Ini", value: stats.unpaidToday },
-                         { title: "Selesai Hari Ini", value: stats.completedToday },
+                         { title: "Total Pasien", value: stats?.totalPatients || 0, icon: Users },
+                         { title: "Total Dokter", value: stats?.totalDoctors || 0, icon: UserCheck },
+                         { title: "Pemeriksaan Lab", value: stats?.totalLabTests || 0, icon: Users },
+                         { title: "Pemeriksaan Rontgen", value: stats?.totalXrayExams || 0, icon: Users },
                     ].map((item, i) => (
                          <Card key={i} className="shadow-sm border-slate-100">
                               <CardContent className="p-6">
                                    <h3 className="text-xs font-medium text-slate-500 mb-2">{item.title}</h3>
                                    <div className="flex items-end gap-2">
-                                        <Users className="w-5 h-5 text-slate-400 mb-1" />
+                                        <item.icon className="w-5 h-5 text-slate-400 mb-1" />
                                         <span className="text-2xl font-semibold text-slate-700">{item.value}</span>
                                    </div>
                               </CardContent>
@@ -198,20 +155,18 @@ export default function Dashboard() {
                     ))}
                </div>
 
-               {/* Row 2: Totals */}
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+               {/* Status Summary */}
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[
-                         { title: "Total Kunjungan Hari Ini", value: stats.visitsToday },
-                         { title: "Total Pasien Hari Ini", value: stats.patientsToday },
-                         { title: "Total Kunjungan 2026", value: stats.visitsYear },
-                         { title: "Total Pasien 2026", value: stats.patientsYear },
+                         { title: "Pasien Baru Hari Ini", value: stats?.todayRegistrations || 0 },
+                         { title: "Lab Menunggu", value: stats?.pendingLabTests || 0 },
+                         { title: "X-Ray Menunggu", value: stats?.pendingXrays || 0 },
                     ].map((item, i) => (
                          <Card key={i} className="shadow-sm border-slate-100">
                               <CardContent className="p-6">
                                    <h3 className="text-xs font-medium text-slate-500 mb-2">{item.title}</h3>
                                    <div className="flex items-end gap-2">
-                                        <Users className="w-5 h-5 text-slate-400 mb-1" />
-                                        <span className="text-2xl font-semibold text-slate-700">{item.value}</span>
+                                        <span className="text-2xl font-semibold text-[#125eab]">{item.value}</span>
                                    </div>
                               </CardContent>
                          </Card>
@@ -220,10 +175,9 @@ export default function Dashboard() {
 
                {/* Charts Row */}
                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Bar Chart */}
                     <Card className="lg:col-span-2 shadow-sm border-slate-100">
                          <CardHeader>
-                              <CardTitle className="text-sm text-slate-600">Grafik Jumlah Kunjungan Tahun 2026</CardTitle>
+                              <CardTitle className="text-sm text-slate-600">Grafik Aktivitas Klinik</CardTitle>
                          </CardHeader>
                          <CardContent>
                               <div className="h-[300px] w-full">
@@ -233,19 +187,17 @@ export default function Dashboard() {
                                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748B' }} />
                                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748B' }} />
                                              <Tooltip />
-                                             <Area type="step" dataKey="value" stroke="#3B82F6" strokeWidth={2} fill="#3B82F6" />
-                                             {/* Note: Screenshot looks like a very thin bar/line. Using scatter or bar with custom shape might be closer, but Area/Bar is standard */}
+                                             <Area type="monotone" dataKey="value" stroke="#125eab" strokeWidth={2} fill="#125eab" fillOpacity={0.1} />
                                         </AreaChart>
                                    </ResponsiveContainer>
                               </div>
                          </CardContent>
                     </Card>
 
-                    {/* Donut Chart */}
                     <Card className="shadow-sm border-slate-100">
                          <CardHeader>
-                              <CardTitle className="text-sm text-slate-600">Statistik Kunjungan Tahun 2026</CardTitle>
-                              <CardDescription className="text-xs">Berdasarkan Jenis Kelamin</CardDescription>
+                              <CardTitle className="text-sm text-slate-600">Status Pemeriksaan</CardTitle>
+                              <CardDescription className="text-xs">Proporsi Selesai vs Menunggu</CardDescription>
                          </CardHeader>
                          <CardContent>
                               <div className="h-[200px] w-full relative">
@@ -255,7 +207,7 @@ export default function Dashboard() {
                                                   data={pieData}
                                                   innerRadius={60}
                                                   outerRadius={80}
-                                                  paddingAngle={0}
+                                                  paddingAngle={5}
                                                   dataKey="value"
                                              >
                                                   {pieData.map((entry, index) => (
@@ -264,19 +216,19 @@ export default function Dashboard() {
                                              </Pie>
                                         </PieChart>
                                    </ResponsiveContainer>
-                                   {/* Center Text */}
                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                        <span className="text-2xl font-bold text-slate-700">6</span>
-                                        <span className="text-[10px] text-slate-500">Tahun Ini</span>
+                                        <span className="text-2xl font-bold text-slate-700">
+                                             {(stats?.totalLabTests || 0) + (stats?.totalXrayExams || 0)}
+                                        </span>
+                                        <span className="text-[10px] text-slate-500">Total</span>
                                    </div>
                               </div>
                               <div className="mt-6 space-y-3">
                                    {pieData.map((item, i) => (
                                         <div key={i} className="flex items-center gap-3">
-                                             <div className="w-8 h-8 rounded flex items-center justify-center" style={{ backgroundColor: item.color }}>
-                                                  <Users className="w-4 h-4 text-slate-600" />
-                                             </div>
-                                             <span className="text-sm text-slate-600">{item.name}</span>
+                                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                                             <span className="text-sm text-slate-600 font-medium">{item.name}</span>
+                                             <span className="text-xs text-slate-400 ml-auto">{item.value}</span>
                                         </div>
                                    ))}
                               </div>
@@ -285,8 +237,9 @@ export default function Dashboard() {
                </div>
 
                <div className="text-center text-xs text-slate-400 pt-8 pb-4">
-                    © 2026 dikembangkan oleh <span className="font-bold">Prima Husada</span>
+                    © 2026 dikembangkan oleh <span className="font-bold text-[#125eab]">Prima Husada</span>
                </div>
           </div>
      );
 }
+
